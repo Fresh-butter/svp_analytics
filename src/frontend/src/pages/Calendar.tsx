@@ -37,6 +37,7 @@ import * as XLSX from 'xlsx';
 import { buildRRuleFromUiState, isRecurringOccurrence, parseRecurrenceUiStateFromLegacy } from '../utils/recurrence';
 import { getAppointmentId, getRecurringId, normalizeAppointmentForCalendar, normalizeRecurringForCalendar } from '../utils/calendarLegacy';
 import { HOLIDAYS, INITIAL_APP_STATE, INITIAL_REC_STATE } from '../constants/calendar';
+import { DASHBOARD_AUTO_REFRESH_MS } from '../constants/refresh';
 
 type CalendarView = 'grid' | 'list';
 
@@ -194,6 +195,18 @@ export const CalendarPage = () => {
     fetchGroups();
     fetchInvestees();
     fetchLookupOptions();
+  }, [fetchAppointments, fetchRecurring, fetchGroups, fetchInvestees, fetchLookupOptions]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void fetchAppointments();
+      void fetchRecurring();
+      void fetchGroups();
+      void fetchInvestees();
+      void fetchLookupOptions();
+    }, DASHBOARD_AUTO_REFRESH_MS);
+
+    return () => window.clearInterval(intervalId);
   }, [fetchAppointments, fetchRecurring, fetchGroups, fetchInvestees, fetchLookupOptions]);
 
   // Handle URL params for group pre-selection (from Groups page)

@@ -113,7 +113,12 @@ export const HomePage = () => {
                 </div>
               ) : (
                 appointments.map(app => (
-                  <div key={app.appointment_id} className="flex items-center justify-between p-4 bg-surfaceHighlight rounded-lg border border-surfaceHighlight">
+                  <button
+                    key={app.appointment_id}
+                    type="button"
+                    onClick={() => navigate(`/appointments/${app.appointment_id}`)}
+                    className="w-full flex items-center justify-between p-4 bg-surfaceHighlight rounded-lg border border-surfaceHighlight hover:border-primary/40 hover:bg-surfaceHighlight/80 transition-colors text-left"
+                  >
                     <div className="flex items-center space-x-4">
                       <div className="flex flex-col items-center justify-center p-2 bg-background rounded text-center min-w-[3.5rem]">
                         <span className="text-primary text-xs font-bold uppercase">{formatShortMonth(app.occurrence_date)}</span>
@@ -138,7 +143,7 @@ export const HomePage = () => {
                     <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-medium rounded border border-primary/20">
                       {app.status === 'PENDING' ? 'Scheduled' : app.status}
                     </span>
-                  </div>
+                  </button>
                 ))
               )}
             </div>

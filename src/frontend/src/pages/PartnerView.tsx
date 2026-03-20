@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card } from '../components/Common';
 import { partnerService } from '../services/partnerService';
 import { ArrowLeft, Mail, Calendar, Users, Clock, Repeat, Linkedin, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
 import { formatDate, formatTime } from '../utils/formatters';
 import { ActiveStatusBadge, AppointmentStatusBadge } from '../components/StatusBadge';
+import { DASHBOARD_AUTO_REFRESH_MS } from '../constants/refresh';
 
 const APPOINTMENTS_PAGE_SIZE = 10;
 
@@ -58,14 +59,30 @@ export const PartnerViewPage = () => {
     const [appointmentPage, setAppointmentPage] = useState(1);
     const [copiedLinkedin, setCopiedLinkedin] = useState(false);
 
-    useEffect(() => {
+    const fetchData = useCallback(async (showLoading = false) => {
         if (!id) return;
-        setLoading(true);
-        partnerService.getWithDetails(id)
-            .then(setData)
-            .catch(err => console.error('Failed to load partner:', err))
-            .finally(() => setLoading(false));
+        try {
+            if (showLoading) setLoading(true);
+            const detail = await partnerService.getWithDetails(id);
+            setData(detail);
+        } catch (err) {
+            console.error('Failed to load partner:', err);
+        } finally {
+            if (showLoading) setLoading(false);
+        }
     }, [id]);
+
+    useEffect(() => {
+        void fetchData(true);
+    }, [fetchData]);
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => {
+            void fetchData(false);
+        }, DASHBOARD_AUTO_REFRESH_MS);
+
+        return () => window.clearInterval(intervalId);
+    }, [fetchData]);
 
     const handleCopyLinkedin = async () => {
         if (data?.linkedin_url) {

@@ -24,6 +24,7 @@ import {
   getMonthlyEngagement,
   getInvesteeAnalytics,
 } from '../services/analyticsService';
+import { DASHBOARD_AUTO_REFRESH_MS } from '../constants/refresh';
 
 import {
   Chart as ChartJS,
@@ -92,10 +93,16 @@ export const AnalyticsPage = () => {
   // Load data for active tab
   useEffect(() => {
     let cancelled = false;
-    setLoadingTab(activeTab);
-    setError(null);
+    let refreshing = false;
 
-    const loadData = async () => {
+    const loadData = async (showLoading: boolean) => {
+      if (refreshing) return;
+      refreshing = true;
+      if (showLoading) {
+        setLoadingTab(activeTab);
+        setError(null);
+      }
+
       try {
         switch (activeTab) {
           case 'attendance':
@@ -120,13 +127,20 @@ export const AnalyticsPage = () => {
           setError(err instanceof Error ? err.message : 'Failed to load analytics data');
         }
       } finally {
-        if (!cancelled) setLoadingTab(null);
+        if (!cancelled && showLoading) setLoadingTab(null);
+        refreshing = false;
       }
     };
 
-    loadData();
+    void loadData(true);
+
+    const intervalId = window.setInterval(() => {
+      void loadData(false);
+    }, DASHBOARD_AUTO_REFRESH_MS);
+
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, [activeTab, fromMonth, toMonth]);
 

@@ -6,7 +6,7 @@ const { utcToday, fmtDate, parseLocalDate } = require('../utils/helpers');
 
 /**
  * Schedule the recurring-appointment materialization cron job.
- * Runs daily at 2:00 AM IST — materializes yesterday's occurrences.
+ * Runs daily at 2:00 A M IST — materializes yesterday's occurrences.
  */
 function startMaterializeCron() {
   cron.schedule('0 2 * * *', async () => {

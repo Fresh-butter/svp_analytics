@@ -32,8 +32,27 @@ export const LoginPage = () => {
     chapterService
       .list()
       .then((chs) => {
-        setChapters(chs);
-        if (chs.length > 0) setChapterId(chs[0].chapter_id);
+        const normalize = (name: string) => name.trim().toLowerCase();
+        const rankChapter = (name: string) => {
+          const normalized = normalize(name);
+          if (normalized.includes('hyderabad')) return 0;
+          if (normalized.includes('bangalore')) return 1;
+          return 2;
+        };
+
+        const orderedChapters = [...chs].sort((a, b) => {
+          const rankDiff = rankChapter(a.chapter_name) - rankChapter(b.chapter_name);
+          if (rankDiff !== 0) return rankDiff;
+          return a.chapter_name.localeCompare(b.chapter_name);
+        });
+
+        setChapters(orderedChapters);
+
+        if (orderedChapters.length > 0) {
+          const defaultChapter =
+            orderedChapters.find((ch) => normalize(ch.chapter_name).includes('hyderabad')) ?? orderedChapters[0];
+          setChapterId(defaultChapter.chapter_id);
+        }
       })
       .catch(() => {
         // Backend might not be running yet — allow manual entry

@@ -9,6 +9,7 @@ import PartnerSelectorModal from '../components/PartnerSelectorModal';
 import { Partner, Group } from '../types';
 import { formatDate } from '../utils/formatters';
 import { ActiveStatusBadge } from '../components/StatusBadge';
+import { DASHBOARD_AUTO_REFRESH_MS } from '../constants/refresh';
 
 type GroupMember = {
     group_partner_id: string;
@@ -39,10 +40,10 @@ export const GroupViewPage = () => {
     const [editEndDate, setEditEndDate] = useState('');
     const [editError, setEditError] = useState('');
 
-    const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async (showLoading = false) => {
         if (!id) return;
         try {
-            setLoading(true);
+            if (showLoading) setLoading(true);
             const res = await groupService.getWithMembers(id);
             setGroup(res.group);
             setMembers(res.members);
@@ -50,11 +51,21 @@ export const GroupViewPage = () => {
         } catch (err) {
             console.error('Error fetching group:', err);
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
         }
     }, [id]);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    useEffect(() => {
+        void fetchData(true);
+    }, [fetchData]);
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => {
+            void fetchData(false);
+        }, DASHBOARD_AUTO_REFRESH_MS);
+
+        return () => window.clearInterval(intervalId);
+    }, [fetchData]);
 
     const openAddModal = async () => {
         try {

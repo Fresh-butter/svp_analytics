@@ -1,0 +1,1 @@
+export const DASHBOARD_AUTO_REFRESH_MS = 10000;

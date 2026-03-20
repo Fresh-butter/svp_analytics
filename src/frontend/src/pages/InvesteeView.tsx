@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card } from '../components/Common';
 import { investeeService } from '../services/investeeService';
 import { ArrowLeft, Mail, Calendar, Users, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDate, formatTime } from '../utils/formatters';
 import { ActiveStatusBadge, AppointmentStatusBadge } from '../components/StatusBadge';
+import { DASHBOARD_AUTO_REFRESH_MS } from '../constants/refresh';
 
 const APPOINTMENTS_PAGE_SIZE = 10;
 
@@ -43,14 +44,30 @@ export const InvesteeViewPage = () => {
     const [loading, setLoading] = useState(true);
     const [appointmentPage, setAppointmentPage] = useState(1);
 
-    useEffect(() => {
+    const fetchData = useCallback(async (showLoading = false) => {
         if (!id) return;
-        setLoading(true);
-        investeeService.getWithDetails(id)
-            .then(setData)
-            .catch(err => console.error('Failed to load investee:', err))
-            .finally(() => setLoading(false));
+        try {
+            if (showLoading) setLoading(true);
+            const detail = await investeeService.getWithDetails(id);
+            setData(detail);
+        } catch (err) {
+            console.error('Failed to load investee:', err);
+        } finally {
+            if (showLoading) setLoading(false);
+        }
     }, [id]);
+
+    useEffect(() => {
+        void fetchData(true);
+    }, [fetchData]);
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => {
+            void fetchData(false);
+        }, DASHBOARD_AUTO_REFRESH_MS);
+
+        return () => window.clearInterval(intervalId);
+    }, [fetchData]);
 
     if (loading) return <div className="p-12 text-center text-textMuted">Loading investee details...</div>;
     if (!data) return <div className="p-12 text-center text-textMuted">Investee not found.</div>;
