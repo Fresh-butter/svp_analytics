@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "lsof -ti:4001 | xargs kill -9 2>/dev/null; node --watch src/index.js",
+    "dev": "node --watch src/index.js",
     "swagger": "node swagger.js",
     "setup": "node scripts/setup.js",
     "db:seed:admins": "node scripts/seed-admin-chapters.js",
