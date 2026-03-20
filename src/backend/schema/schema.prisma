@@ -1,0 +1,242 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model appointment_partners {
+  app_partner_id String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id     String       @db.Uuid
+  appointment_id String       @db.Uuid
+  partner_id     String       @db.Uuid
+  is_present     Boolean?     @default(false)
+  created_at     DateTime?    @default(now()) @db.Timestamptz(6)
+  modified_at    DateTime?    @default(now()) @db.Timestamptz(6)
+  appointments   appointments @relation(fields: [appointment_id], references: [appointment_id], onDelete: Cascade, onUpdate: NoAction)
+  chapters       chapters     @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  partners       partners     @relation(fields: [partner_id], references: [partner_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([appointment_id, partner_id], map: "idx_ap_unique")
+  @@index([chapter_id], map: "idx_ap_chapter")
+}
+
+model appointment_types {
+  appointment_type_id    String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id             String                   @db.Uuid
+  type_name              String                   @db.VarChar(150)
+  created_at             DateTime?                @default(now()) @db.Timestamptz(6)
+  modified_at            DateTime?                @default(now()) @db.Timestamptz(6)
+  chapters               chapters                 @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  appointments           appointments[]
+  recurring_appointments recurring_appointments[]
+
+  @@unique([chapter_id, type_name], map: "unique_chapter_appointment_type")
+  @@index([chapter_id], map: "idx_appointment_types_chapter")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model appointments {
+  appointment_id         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id             String                  @db.Uuid
+  appointment_type_id    String?                 @db.Uuid
+  group_type_id          String?                 @db.Uuid
+  occurrence_date        DateTime                @db.Date
+  start_at               DateTime                @db.Timestamptz(6)
+  end_at                 DateTime                @db.Timestamptz(6)
+  duration_minutes       Int?                    @default(dbgenerated("((EXTRACT(epoch FROM (end_at - start_at)))::integer / 60)"))
+  investee_id            String?                 @db.Uuid
+  status                 appointment_status_enum @default(PENDING)
+  created_at             DateTime?               @default(now()) @db.Timestamptz(6)
+  modified_at            DateTime?               @default(now()) @db.Timestamptz(6)
+  rec_appointment_id     String?                 @db.Uuid
+  appointment_partners   appointment_partners[]
+  appointment_types      appointment_types?      @relation(fields: [appointment_type_id], references: [appointment_type_id], onDelete: NoAction, onUpdate: NoAction)
+  chapters               chapters                @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  group_types            group_types?            @relation(fields: [group_type_id], references: [group_type_id], onDelete: NoAction, onUpdate: NoAction)
+  investees              investees?              @relation(fields: [investee_id], references: [investee_id], onDelete: NoAction, onUpdate: NoAction)
+  recurring_appointments recurring_appointments? @relation(fields: [rec_appointment_id], references: [rec_appointment_id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([rec_appointment_id, occurrence_date], map: "idx_appointments_rec_occurrence", where: raw("(rec_appointment_id IS NOT NULL)"))
+  @@index([chapter_id], map: "idx_appointments_chapter")
+  @@index([occurrence_date], map: "idx_appointments_date")
+}
+
+model chapters {
+  chapter_id                     String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_name                   String                           @db.VarChar(100)
+  created_at                     DateTime?                        @default(now()) @db.Timestamptz(6)
+  modified_at                    DateTime?                        @default(now()) @db.Timestamptz(6)
+  appointment_partners           appointment_partners[]
+  appointment_types              appointment_types[]
+  appointments                   appointments[]
+  group_partners                 group_partners[]
+  group_types                    group_types[]
+  groups                         groups[]
+  investees                      investees[]
+  partners                       partners[]
+  recurring_appointment_partners recurring_appointment_partners[]
+  recurring_appointments         recurring_appointments[]
+  users                          users[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model group_partners {
+  group_partner_id String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id       String    @db.Uuid
+  group_id         String    @db.Uuid
+  partner_id       String    @db.Uuid
+  start_date       DateTime  @db.Date
+  end_date         DateTime? @db.Date
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+  modified_at      DateTime? @default(now()) @db.Timestamptz(6)
+  chapters         chapters  @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  groups           groups    @relation(fields: [group_id], references: [group_id], onDelete: Cascade, onUpdate: NoAction)
+  partners         partners  @relation(fields: [partner_id], references: [partner_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([group_id, partner_id], map: "idx_gp_unique", where: raw("(end_date IS NULL)"))
+  @@index([chapter_id], map: "idx_gp_chapter")
+}
+
+model group_types {
+  group_type_id String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id    String         @db.Uuid
+  type_name     String         @db.VarChar(150)
+  created_at    DateTime?      @default(now()) @db.Timestamptz(6)
+  modified_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  chapters      chapters       @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  appointments  appointments[]
+  groups        groups[]
+
+  @@unique([chapter_id, type_name], map: "unique_chapter_group_type")
+  @@index([chapter_id], map: "idx_group_types_chapter")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model groups {
+  group_id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id             String                   @db.Uuid
+  group_name             String                   @db.VarChar(150)
+  group_type_id          String?                  @db.Uuid
+  investee_id            String?                  @db.Uuid
+  start_date             DateTime                 @db.Date
+  end_date               DateTime?                @db.Date
+  created_at             DateTime?                @default(now()) @db.Timestamptz(6)
+  modified_at            DateTime?                @default(now()) @db.Timestamptz(6)
+  group_partners         group_partners[]
+  chapters               chapters                 @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  group_types            group_types?             @relation(fields: [group_type_id], references: [group_type_id], onDelete: NoAction, onUpdate: NoAction)
+  investees              investees?               @relation(fields: [investee_id], references: [investee_id], onDelete: NoAction, onUpdate: NoAction)
+  recurring_appointments recurring_appointments[]
+
+  @@index([chapter_id], map: "idx_groups_chapter")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model investees {
+  investee_id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id             String                   @db.Uuid
+  investee_name          String                   @db.VarChar(200)
+  email                  String                   @db.VarChar(255)
+  start_date             DateTime                 @db.Date
+  end_date               DateTime?                @db.Date
+  created_at             DateTime?                @default(now()) @db.Timestamptz(6)
+  modified_at            DateTime?                @default(now()) @db.Timestamptz(6)
+  appointments           appointments[]
+  groups                 groups[]
+  chapters               chapters                 @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  recurring_appointments recurring_appointments[]
+
+  @@index([chapter_id], map: "idx_investees_chapter")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model partners {
+  partner_id                     String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id                     String                           @db.Uuid
+  partner_name                   String                           @db.VarChar(150)
+  email                          String?                          @db.VarChar(255)
+  linkedin_url                   String?                          @db.VarChar(500)
+  primary_partner_id             String?                          @db.Uuid
+  start_date                     DateTime                         @db.Date
+  end_date                       DateTime?                        @db.Date
+  created_at                     DateTime?                        @default(now()) @db.Timestamptz(6)
+  modified_at                    DateTime?                        @default(now()) @db.Timestamptz(6)
+  appointment_partners           appointment_partners[]
+  group_partners                 group_partners[]
+  chapters                       chapters                         @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  partners                       partners?                        @relation("partnersTopartners", fields: [primary_partner_id], references: [partner_id], onDelete: NoAction, onUpdate: NoAction)
+  other_partners                 partners[]                       @relation("partnersTopartners")
+  recurring_appointment_partners recurring_appointment_partners[]
+
+  @@unique([chapter_id, email], map: "idx_partners_chapter_email", where: raw("(email IS NOT NULL)"))
+  @@index([chapter_id], map: "idx_partners_chapter")
+}
+
+model recurring_appointment_partners {
+  rec_app_partner_id     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id             String                 @db.Uuid
+  rec_appointment_id     String                 @db.Uuid
+  partner_id             String                 @db.Uuid
+  created_at             DateTime?              @default(now()) @db.Timestamptz(6)
+  modified_at            DateTime?              @default(now()) @db.Timestamptz(6)
+  chapters               chapters               @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  partners               partners               @relation(fields: [partner_id], references: [partner_id], onDelete: NoAction, onUpdate: NoAction)
+  recurring_appointments recurring_appointments @relation(fields: [rec_appointment_id], references: [rec_appointment_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([rec_appointment_id, partner_id], map: "idx_rap_unique")
+  @@index([chapter_id], map: "idx_rap_chapter")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model recurring_appointments {
+  rec_appointment_id             String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id                     String                           @db.Uuid
+  group_id                       String?                          @db.Uuid
+  appointment_type_id            String?                          @db.Uuid
+  start_time                     DateTime                         @db.Time(6)
+  duration_minutes               Int
+  rrule                          String
+  investee_id                    String?                          @db.Uuid
+  start_date                     DateTime                         @db.Date
+  end_date                       DateTime                         @db.Date
+  created_at                     DateTime?                        @default(now()) @db.Timestamptz(6)
+  modified_at                    DateTime?                        @default(now()) @db.Timestamptz(6)
+  appointments                   appointments[]
+  recurring_appointment_partners recurring_appointment_partners[]
+  appointment_types              appointment_types?               @relation(fields: [appointment_type_id], references: [appointment_type_id], onDelete: NoAction, onUpdate: NoAction)
+  chapters                       chapters                         @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+  groups                         groups?                          @relation(fields: [group_id], references: [group_id], onDelete: NoAction, onUpdate: NoAction)
+  investees                      investees?                       @relation(fields: [investee_id], references: [investee_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([chapter_id], map: "idx_recurring_appointments_chapter")
+  @@index([start_date, end_date], map: "idx_recurring_appointments_dates")
+}
+
+model users {
+  user_id       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chapter_id    String         @db.Uuid
+  user_type     user_type_enum @default(ADMIN)
+  name          String         @db.VarChar(150)
+  email         String         @db.VarChar(255)
+  password_hash String         @db.VarChar(72)
+  created_at    DateTime?      @default(now()) @db.Timestamptz(6)
+  modified_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  chapters      chapters       @relation(fields: [chapter_id], references: [chapter_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([chapter_id, email], map: "idx_users_chapter_email")
+  @@index([chapter_id], map: "idx_users_chapter")
+}
+
+enum appointment_status_enum {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum user_type_enum {
+  ADMIN
+  PARTNER
+}

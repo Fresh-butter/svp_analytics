@@ -1,0 +1,2928 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SVP Analytics API",
+    "version": "1.0.0",
+    "description": "SVP Partner Engagement Dashboard - Backend API (SRS v1.0)"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4001"
+    }
+  ],
+  "paths": {
+    "/api/docs.json": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Login with email and password",
+        "description": "Authenticates a user and returns a JWT token.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "type": "string"
+                        },
+                        "user": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error — email and password required"
+          },
+          "401": {
+            "description": "Invalid email or password"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "example": "admin@svp.org"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "password123"
+                  },
+                  "chapter_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/forgot-password": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Request password reset",
+        "description": "Sends a new password to the user email if it exists. Always returns success to prevent email enumeration.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request processed (always returns same message)"
+          },
+          "400": {
+            "description": "Email is required"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "example": "user@svp.org"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Logout current user",
+        "description": "Client-side token discard (stateless JWT). Requires authentication.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logged out successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get current user profile",
+        "description": "Returns the authenticated user profile (without password_hash).",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user data"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "404": {
+            "description": "User not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/chapters/": {
+      "get": {
+        "tags": [
+          "Chapters"
+        ],
+        "summary": "List all chapters",
+        "description": "Returns a list of all chapters.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of chapters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/chapters/{id}": {
+      "get": {
+        "tags": [
+          "Chapters"
+        ],
+        "summary": "Get a chapter by ID",
+        "description": "Returns a single chapter by its UUID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Chapter UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chapter found"
+          },
+          "404": {
+            "description": "Chapter not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/partners/": {
+      "get": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "List all partners",
+        "description": "Returns partners for a chapter. Supports filtering by active status and primary flag.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapter_id",
+            "in": "query",
+            "format": "uuid",
+            "description": "Chapter UUID (defaults to authenticated user chapter)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "enum": [
+              "true",
+              "false"
+            ],
+            "description": "Filter by active status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "primary",
+            "in": "query",
+            "description": "Filter by primary partner name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of partners"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Create a new partner",
+        "description": "Creates a new partner. Requires chapter_id, partner_name, and start_date.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Partner created"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Partner with this email already exists in this chapter"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "chapter_id",
+                  "partner_name",
+                  "start_date"
+                ],
+                "properties": {
+                  "chapter_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "partner_name": {
+                    "type": "string",
+                    "example": "Jane Doe"
+                  },
+                  "email": {
+                    "type": "string",
+                    "example": "jane@example.com"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2025-01-15"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "is_active": {
+                    "type": "boolean",
+                    "example": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/partners/{id}": {
+      "get": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Get partner by ID",
+        "description": "Returns a partner with groups and appointment details. Optionally filtered by month and year.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Partner UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "description": "Month name, e.g. January. Defaults to current month.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "description": "Year, e.g. 2025. Defaults to current year.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Partner not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Update a partner",
+        "description": "Update partner details by ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Partner UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner updated"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Partner not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "partner_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "is_active": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Delete a partner",
+        "description": "Deletes a partner. Blocked if referenced by other entities.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Partner UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Partner not found"
+          },
+          "409": {
+            "description": "Partner is referenced and cannot be deleted"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/investees/": {
+      "get": {
+        "tags": [
+          "Investees"
+        ],
+        "summary": "List all investees",
+        "description": "Returns investees for a chapter. Supports filtering by active status.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapter_id",
+            "in": "query",
+            "format": "uuid",
+            "description": "Chapter UUID (defaults to authenticated user chapter)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "enum": [
+              "true",
+              "false"
+            ],
+            "description": "Filter by active status",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of investees"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Investees"
+        ],
+        "summary": "Create a new investee",
+        "description": "Creates a new investee. Requires chapter_id, investee_name, email, and start_date.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Investee created"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "chapter_id",
+                  "investee_name",
+                  "email",
+                  "start_date"
+                ],
+                "properties": {
+                  "chapter_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "investee_name": {
+                    "type": "string",
+                    "example": "Acme Corp"
+                  },
+                  "email": {
+                    "type": "string",
+                    "example": "contact@acme.com"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2025-01-15"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "is_active": {
+                    "type": "boolean",
+                    "example": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/investees/{id}": {
+      "get": {
+        "tags": [
+          "Investees"
+        ],
+        "summary": "Get investee by ID",
+        "description": "Returns an investee with groups and appointment details. Optionally filtered by month and year.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Investee UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "description": "Month number 1-12. Defaults to current month.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "description": "Year, e.g. 2025. Defaults to current year.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Investee details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Investee not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Investees"
+        ],
+        "summary": "Update an investee",
+        "description": "Update investee details by ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Investee UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Investee updated"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Investee not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "investee_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "is_active": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Investees"
+        ],
+        "summary": "Delete an investee",
+        "description": "Deletes an investee. Blocked if referenced by other entities.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Investee UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Investee deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Investee not found"
+          },
+          "409": {
+            "description": "Investee is referenced and cannot be deleted"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/groups/": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List all groups",
+        "description": "Returns groups for a chapter. Supports filtering by active status and group type.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapter_id",
+            "in": "query",
+            "format": "uuid",
+            "description": "Chapter UUID (defaults to authenticated user chapter)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "enum": [
+              "true",
+              "false"
+            ],
+            "description": "Filter by active status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_type",
+            "in": "query",
+            "description": "Filter by group type",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of groups"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Create a new group",
+        "description": "Creates a new group. Requires chapter_id, group_name, group_type_id, and start_date.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Group created"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "chapter_id",
+                  "group_name",
+                  "group_type_id",
+                  "start_date"
+                ],
+                "properties": {
+                  "chapter_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "investee_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "group_name": {
+                    "type": "string",
+                    "example": "Alpha Team"
+                  },
+                  "group_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2025-01-15"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "is_active": {
+                    "type": "boolean",
+                    "example": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/groups/{id}": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Get group by ID",
+        "description": "Returns a group with its member partners.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Group UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group details with members"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Group not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Update a group",
+        "description": "Update group metadata by ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Group UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group updated"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Group not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "group_name": {
+                    "type": "string"
+                  },
+                  "group_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "investee_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "is_active": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Delete a group",
+        "description": "Deletes a group. Blocked if referenced in recurring appointments.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Group UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Group not found"
+          },
+          "409": {
+            "description": "Group is referenced and cannot be deleted"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/groups/{id}/partners": {
+      "put": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Update group partners",
+        "description": "Overwrites the list of partners assigned to a group.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Group UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group partners updated"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Group not found"
+          },
+          "409": {
+            "description": "Duplicate partner entries"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "chapter_id",
+                  "partners"
+                ],
+                "properties": {
+                  "chapter_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "partners": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "partner_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "role": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "example": [
+                      {
+                        "partner_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "role": "lead"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/appointments/": {
+      "get": {
+        "tags": [
+          "Appointments"
+        ],
+        "summary": "List appointments",
+        "description": "Returns appointments for a chapter, paginated by month and year. Defaults to current month/year.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapter_id",
+            "in": "query",
+            "format": "uuid",
+            "description": "Chapter UUID (defaults to authenticated user chapter)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "description": "Month number (1-12). Defaults to current month.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "description": "Year (e.g. 2025). Defaults to current year.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of appointments with pagination metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "integer"
+                        },
+                        "year": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Appointments"
+        ],
+        "summary": "Create a new appointment",
+        "description": "Creates a new appointment with optional partner and investee associations.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Appointment created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "chapter_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "start_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-03-15T10:00:00Z"
+                  },
+                  "end_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-03-15T11:00:00Z"
+                  },
+                  "appointment_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "group_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "investee_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "PENDING",
+                      "COMPLETED"
+                    ],
+                    "example": "PENDING"
+                  },
+                  "partners": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "description": "Array of partner UUIDs"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/appointments/{id}": {
+      "get": {
+        "tags": [
+          "Appointments"
+        ],
+        "summary": "Get appointment by ID",
+        "description": "Returns an appointment with investee, recurring appointment, and partners details.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Appointment UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Appointment details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Appointment not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Appointments"
+        ],
+        "summary": "Update an appointment",
+        "description": "Update appointment details. Can include start_at, end_at, type, investee, partners, and status.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Appointment UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Appointment updated"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Appointment not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "start_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "end_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "appointment_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "group_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "investee_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "PENDING",
+                      "COMPLETED"
+                    ]
+                  },
+                  "partners": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Appointments"
+        ],
+        "summary": "Delete an appointment",
+        "description": "Deletes an appointment and cascades to appointment_partners.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Appointment UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Appointment deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Appointment not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/appointments/{id}/complete": {
+      "patch": {
+        "tags": [
+          "Appointments"
+        ],
+        "summary": "Mark appointment as completed",
+        "description": "Marks an appointment as completed and records partner attendance.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Appointment UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Appointment marked as completed"
+          },
+          "400": {
+            "description": "attendance array is required"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Appointment not found or already completed"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "attendance"
+                ],
+                "properties": {
+                  "attendance": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "partner_id",
+                        "is_present"
+                      ],
+                      "properties": {
+                        "partner_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "is_present": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "example": [
+                      {
+                        "partner_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "is_present": true
+                      },
+                      {
+                        "partner_id": "660e8400-e29b-41d4-a716-446655440001",
+                        "is_present": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recurring-appointments/": {
+      "get": {
+        "tags": [
+          "Recurring Appointments"
+        ],
+        "summary": "List recurring appointment templates",
+        "description": "Returns all recurring appointment templates for a chapter.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapter_id",
+            "in": "query",
+            "format": "uuid",
+            "description": "Chapter UUID (defaults to authenticated user chapter)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of recurring appointment templates"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Recurring Appointments"
+        ],
+        "summary": "Create a recurring appointment template",
+        "description": "Creates a new recurring appointment template with an rrule schedule. end_date cannot be more than 1 year from today.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Recurring appointment created"
+          },
+          "400": {
+            "description": "Validation error (missing fields, invalid rrule, or end_date too far)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "chapter_id",
+                  "start_time",
+                  "duration_minutes",
+                  "rrule",
+                  "start_date",
+                  "end_date",
+                  "appointment_type_id"
+                ],
+                "properties": {
+                  "chapter_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "start_time": {
+                    "type": "string",
+                    "example": "10:00"
+                  },
+                  "duration_minutes": {
+                    "type": "integer",
+                    "example": 60
+                  },
+                  "rrule": {
+                    "type": "string",
+                    "example": "FREQ=WEEKLY;BYDAY=MO"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2025-01-01"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2025-06-30"
+                  },
+                  "appointment_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "group_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "investee_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "partners": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "description": "Optional partner UUIDs subset"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recurring-appointments/{id}": {
+      "get": {
+        "tags": [
+          "Recurring Appointments"
+        ],
+        "summary": "Get recurring appointment by ID",
+        "description": "Returns a recurring appointment template with partners, group and investee details.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Recurring appointment UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recurring appointment details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Recurring appointment not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Recurring Appointments"
+        ],
+        "summary": "Update a recurring appointment template",
+        "description": "Updates a template. Only affects unmaterialized occurrences. Validates rrule and end_date if provided.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Recurring appointment UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recurring appointment updated"
+          },
+          "400": {
+            "description": "Validation error (invalid rrule or end_date too far)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Recurring appointment not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "start_time": {
+                    "type": "string"
+                  },
+                  "duration_minutes": {
+                    "type": "integer"
+                  },
+                  "rrule": {
+                    "type": "string"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "appointment_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "group_type_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "investee_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "partners": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Recurring Appointments"
+        ],
+        "summary": "Delete a recurring appointment template",
+        "description": "Deletes the template. Sets rec_appointment_id = NULL in materialized appointments.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Recurring appointment UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recurring appointment deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Recurring appointment not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/recurring-appointments/{id}/materialize": {
+      "post": {
+        "tags": [
+          "Recurring Appointments"
+        ],
+        "summary": "Manually materialize an occurrence",
+        "description": "Creates a PENDING appointment for a specific occurrence_date from a recurring template. The date must fall within the template range and be a valid rrule occurrence.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Recurring appointment UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Occurrence materialized as a new appointment"
+          },
+          "400": {
+            "description": "Validation error (missing date, out of range, or not a valid rrule occurrence)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Recurring appointment not found"
+          },
+          "409": {
+            "description": "This occurrence has already been materialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "occurrence_date"
+                ],
+                "properties": {
+                  "occurrence_date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2025-01-15"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feedback/": {
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "example": "any"
+                  },
+                  "report": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/attendance-by-partner": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Attendance by Partner",
+        "description": "Returns partner engagement stats: meetings attended, hours spent, last meeting date",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from_month",
+            "in": "query",
+            "required": true,
+            "format": "YYYY-MM",
+            "description": "Start month (format: YYYY-MM)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_month",
+            "in": "query",
+            "required": true,
+            "format": "YYYY-MM",
+            "description": "End month (format: YYYY-MM)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "investee_id",
+            "in": "query",
+            "format": "uuid",
+            "description": "Optional investee filter",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "appointment_type_id",
+            "in": "query",
+            "format": "uuid",
+            "description": "Optional appointment type filter",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner analytics data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "object"
+                    },
+                    "properties": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "example": "boolean"
+                            }
+                          }
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "example": "array"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "xml": {
+                    "name": "main"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "object"
+                    },
+                    "properties": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "example": "boolean"
+                            }
+                          }
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "example": "array"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "xml": {
+                    "name": "main"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/analytics/metrics-by-category": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Metrics by Category",
+        "description": "Returns category metrics: meetings count, distinct partners, hours, average duration",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from_month",
+            "in": "query",
+            "required": true,
+            "format": "YYYY-MM",
+            "description": "Start month (format: YYYY-MM)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_month",
+            "in": "query",
+            "required": true,
+            "format": "YYYY-MM",
+            "description": "End month (format: YYYY-MM)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "partner_id",
+            "in": "query",
+            "format": "uuid",
+            "description": "Optional partner filter",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category metrics data"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/analytics/monthly-engagement": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Monthly Engagement",
+        "description": "Returns monthly engagement: meetings count, distinct partners engaged",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from_month",
+            "in": "query",
+            "required": true,
+            "format": "YYYY-MM",
+            "description": "Start month (format: YYYY-MM)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_month",
+            "in": "query",
+            "required": true,
+            "format": "YYYY-MM",
+            "description": "End month (format: YYYY-MM)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "investee_id",
+            "in": "query",
+            "format": "uuid",
+            "description": "Optional investee filter",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Monthly engagement data"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/analytics/investee-analytics": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Investee Analytics",
+        "description": "Returns investee metrics: meetings count, hours spent, average duration",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from_month",
+            "in": "query",
+            "required": true,
+            "format": "YYYY-MM",
+            "description": "Start month (format: YYYY-MM)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_month",
+            "in": "query",
+            "required": true,
+            "format": "YYYY-MM",
+            "description": "End month (format: YYYY-MM)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Investee analytics data"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/group-types": {
+      "get": {
+        "tags": [
+          "Lookups"
+        ],
+        "summary": "List group types",
+        "description": "Returns all group types for the authenticated user chapter.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of group types"
+          },
+          "400": {
+            "description": "chapter_id is required (from token)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Lookups"
+        ],
+        "summary": "Create a group type",
+        "description": "Creates a new group type for the authenticated user chapter.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Group type created"
+          },
+          "400": {
+            "description": "Validation error (type_name or chapter_id missing)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "type_name"
+                ],
+                "properties": {
+                  "type_name": {
+                    "type": "string",
+                    "example": "Board Committee"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/group-types/{id}": {
+      "delete": {
+        "tags": [
+          "Lookups"
+        ],
+        "summary": "Delete a group type",
+        "description": "Deletes a group type by ID. Blocked if referenced by groups.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Group type UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group type deleted successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Group type not found"
+          },
+          "409": {
+            "description": "Group type is referenced and cannot be deleted"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/appointment-types": {
+      "get": {
+        "tags": [
+          "Lookups"
+        ],
+        "summary": "List appointment types",
+        "description": "Returns all appointment types for the authenticated user chapter.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of appointment types"
+          },
+          "400": {
+            "description": "chapter_id is required (from token)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Lookups"
+        ],
+        "summary": "Create an appointment type",
+        "description": "Creates a new appointment type for the authenticated user chapter.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Appointment type created"
+          },
+          "400": {
+            "description": "Validation error (type_name or chapter_id missing)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "type_name"
+                ],
+                "properties": {
+                  "type_name": {
+                    "type": "string",
+                    "example": "Monthly Review"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/appointment-types/{id}": {
+      "delete": {
+        "tags": [
+          "Lookups"
+        ],
+        "summary": "Delete an appointment type",
+        "description": "Deletes an appointment type by ID. Blocked if referenced.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "format": "uuid",
+            "description": "Appointment type UUID"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Appointment type deleted successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Appointment type not found"
+          },
+          "409": {
+            "description": "Appointment type is referenced and cannot be deleted"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

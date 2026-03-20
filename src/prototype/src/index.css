@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Mode */
+    --color-background: 248 250 252;      /* Slate 50 */
+    --color-surface: 255 255 255;         /* White */
+    --color-surface-highlight: 241 245 249; /* Slate 100 */
+    --color-border: 219 234 254;          /* Blue 100 — subtle blue tint on borders */
+    --color-text: 15 23 42;               /* Slate 900 */
+    --color-text-muted: 100 116 139;      /* Slate 500 */
+
+    --color-primary: 37 99 235;           /* Blue 600 — Stripe/Salesforce blue */
+    --color-primary-hover: 29 78 216;     /* Blue 700 */
+    --color-danger: 239 68 68;            /* Red 500 — unchanged */
+
+    --color-sidebar: 255 255 255;
+    --color-sidebar-active: 239 246 255;  /* Blue 50 */
+    --color-sidebar-text: 100 116 139;    /* Slate 500 */
+    --color-sidebar-text-active: 37 99 235; /* Blue 600 */
+  }
+
+  .dark {
+    /* Dark Mode */
+    --color-background: 9 9 11;           /* Zinc 950 */
+    --color-surface: 24 24 27;            /* Zinc 900 */
+    --color-surface-highlight: 39 39 42;  /* Zinc 800 */
+    --color-border: 39 39 42;             /* Zinc 800 */
+    --color-text: 244 244 245;            /* Zinc 100 */
+    --color-text-muted: 161 161 170;      /* Zinc 400 */
+
+    --color-primary: 96 165 250;          /* Blue 400 — readable on dark */
+    --color-primary-hover: 147 197 253;   /* Blue 300 */
+    --color-danger: 248 113 113;          /* Red 400 */
+
+    --color-sidebar: 12 12 14;
+    --color-sidebar-active: 23 37 84;     /* Blue 950 — deep navy active */
+    --color-sidebar-text: 156 163 175;    /* Zinc 400 */
+    --color-sidebar-text-active: 96 165 250; /* Blue 400 */
+  }
+
+  body {
+    @apply antialiased bg-background text-text font-sans;
+  }
+}
+
+@layer components {
+  .ui-select {
+    @apply w-full bg-background border border-surfaceHighlight rounded-lg px-4 py-2.5 text-text outline-none transition-all appearance-none;
+    @apply focus:border-primary focus:ring-1 focus:ring-primary;
+  }
+
+  .ui-select:disabled {
+    @apply opacity-60 cursor-not-allowed;
+  }
+
+  .ui-select option {
+    background-color: rgb(var(--color-surface));
+    color: rgb(var(--color-text));
+  }
+}
+
+/* Custom Scrollbar for a cleaner look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-surface;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-surfaceHighlight rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-textMuted;
+}
+
+/* Custom easing for toggle switch */
+.ease-spring {
+   transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Make native date-picker calendar icon visible in dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+input[type="date"] {
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -1,0 +1,35 @@
+{
+  "name": "svp-analytics-backend",
+  "version": "1.0.0",
+  "description": "SVP Partner Engagement Dashboard - Backend API",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "lsof -ti:4001 | xargs kill -9 2>/dev/null; node --watch src/index.js",
+    "swagger": "node swagger.js",
+    "setup": "node scripts/setup.js",
+    "db:seed:admins": "node scripts/seed-admin-chapters.js",
+    "db:seed:dummy": "node scripts/seed-dummy-data.js",
+    "db:seed": "npm run db:seed:admins && npm run db:seed:dummy"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.4.2",
+    "@prisma/client": "^7.4.2",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.2",
+    "pg": "^8.20.0",
+    "prisma": "^7.4.2",
+    "rrule": "^2.8.1",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "swagger-autogen": "^2.23.7",
+    "typescript": "^5.9.3"
+  }
+}
