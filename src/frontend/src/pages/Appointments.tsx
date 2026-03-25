@@ -300,22 +300,6 @@ export const AppointmentsPage = () => {
                 initialData={initialFormData}
                 initialSelectedPartnerIds={initialPartnerIds}
                 isEditing={!!editingAppointmentId}
-                onCreateAppointmentType={async (name) => {
-                    await lookupService.createAppointmentType(name);
-                    await queryClient.invalidateQueries({ queryKey: ['appointment-types'] });
-                }}
-                onDeleteAppointmentType={async (id) => {
-                    await lookupService.deleteAppointmentType(id);
-                    await queryClient.invalidateQueries({ queryKey: ['appointment-types'] });
-                }}
-                onCreateGroupType={async (name) => {
-                    await lookupService.createGroupType(name);
-                    await queryClient.invalidateQueries({ queryKey: ['group-types'] });
-                }}
-                onDeleteGroupType={async (id) => {
-                    await lookupService.deleteGroupType(id);
-                    await queryClient.invalidateQueries({ queryKey: ['group-types'] });
-                }}
             />
 
             <GroupSelectorModal

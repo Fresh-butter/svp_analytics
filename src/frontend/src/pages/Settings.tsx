@@ -3,6 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { Card, Modal, Button, Input } from '../components/Common';
+import { LookupManagerModal } from '../components/LookupManagerModal';
+import { lookupService } from '../services/lookupService';
+import { AppointmentType, GroupType } from '../types';
 
 type Admin = {
   user_id: string;
@@ -13,8 +16,13 @@ type Admin = {
 
 export const SettingsPage = () => {
   const [admins, setAdmins] = useState<Admin[]>([]);
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
+  const [groupTypes, setGroupTypes] = useState<GroupType[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingLookups, setLoadingLookups] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [isAppointmentTypeModalOpen, setIsAppointmentTypeModalOpen] = useState(false);
+  const [isGroupTypeModalOpen, setIsGroupTypeModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +40,26 @@ export const SettingsPage = () => {
     }
   };
 
-  useEffect(() => { void fetchAdmins(); }, []);
+  const fetchLookupTypes = async () => {
+    try {
+      setLoadingLookups(true);
+      const [apptTypes, grpTypes] = await Promise.all([
+        lookupService.listAppointmentTypes(),
+        lookupService.listGroupTypes(),
+      ]);
+      setAppointmentTypes(apptTypes);
+      setGroupTypes(grpTypes);
+    } catch (err) {
+      console.error('Failed to load lookup types:', err);
+    } finally {
+      setLoadingLookups(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchAdmins();
+    void fetchLookupTypes();
+  }, []);
 
   const handleAdd = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -105,6 +132,37 @@ export const SettingsPage = () => {
         </div>
       </Card>
 
+      <Card>
+        <div className="p-6 space-y-4">
+          <h3 className="text-lg font-medium text-textMuted">Type Management</h3>
+          <p className="text-sm text-textMuted">Manage appointment and group types from Settings.</p>
+
+          {loadingLookups ? (
+            <p className="text-textMuted">Loading types...</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAppointmentTypeModalOpen(true)}
+                className="text-left p-4 bg-background border border-surfaceHighlight rounded-lg hover:border-primary/50 transition-colors"
+              >
+                <div className="font-medium text-text">Appointment Types</div>
+                <div className="text-sm text-textMuted mt-1">{appointmentTypes.length} type{appointmentTypes.length !== 1 ? 's' : ''}</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsGroupTypeModalOpen(true)}
+                className="text-left p-4 bg-background border border-surfaceHighlight rounded-lg hover:border-primary/50 transition-colors"
+              >
+                <div className="font-medium text-text">Group Types</div>
+                <div className="text-sm text-textMuted mt-1">{groupTypes.length} type{groupTypes.length !== 1 ? 's' : ''}</div>
+              </button>
+            </div>
+          )}
+        </div>
+      </Card>
+
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Add Admin">
         <form onSubmit={handleAdd} className="space-y-4">
           <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Jane Doe" />
@@ -116,6 +174,40 @@ export const SettingsPage = () => {
           </div>
         </form>
       </Modal>
+
+      <LookupManagerModal
+        isOpen={isAppointmentTypeModalOpen}
+        onClose={() => setIsAppointmentTypeModalOpen(false)}
+        title="Manage Appointment Types"
+        addLabel="New Appointment Type"
+        options={appointmentTypes.map((t) => ({ id: t.appointment_type_id, name: t.type_name }))}
+        onCreate={async (nameValue) => {
+          const created = await lookupService.createAppointmentType(nameValue);
+          setAppointmentTypes((current) => [created, ...current]);
+        }}
+        onDelete={async (id) => {
+          await lookupService.deleteAppointmentType(id);
+          setAppointmentTypes((current) => current.filter((item) => item.appointment_type_id !== id));
+        }}
+        emptyText="No appointment types found."
+      />
+
+      <LookupManagerModal
+        isOpen={isGroupTypeModalOpen}
+        onClose={() => setIsGroupTypeModalOpen(false)}
+        title="Manage Group Types"
+        addLabel="New Group Type"
+        options={groupTypes.map((t) => ({ id: t.group_type_id, name: t.type_name }))}
+        onCreate={async (nameValue) => {
+          const created = await lookupService.createGroupType(nameValue);
+          setGroupTypes((current) => [created, ...current]);
+        }}
+        onDelete={async (id) => {
+          await lookupService.deleteGroupType(id);
+          setGroupTypes((current) => current.filter((item) => item.group_type_id !== id));
+        }}
+        emptyText="No group types found."
+      />
     </div>
   );
 };

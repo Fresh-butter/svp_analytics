@@ -13,14 +13,13 @@ import { useInvestees } from '../hooks/useInvestees';
 import { useGroups } from '../hooks/useGroups';
 import { usePartners } from '../hooks/usePartners';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { formatDate, formatTime, formatTimeInput } from '../utils/formatters';
 import { buildRRuleFromUiState, parseRecurrenceUiStateFromLegacy, parseRRuleToUiState } from '../utils/recurrence';
 
 export const RecurringAppointmentsPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const queryClient = useQueryClient();
     const chapterId = user?.chapter_id || '';
 
     // Data
@@ -53,6 +52,16 @@ export const RecurringAppointmentsPage = () => {
     const allPartners = partners.map((p) => ({ partner_id: p.partner_id, partner_name: p.partner_name, email: p.email }));
 
     const getTypeName = (id?: string | null, name?: string | null) => name || appointmentTypes.find(t => t.appointment_type_id === id)?.type_name || '-';
+
+    const getEndTime = (startTime?: string | null, durationMinutes?: number | null) => {
+        if (!startTime) return '-';
+        const [sh, sm] = startTime.split(':').map(Number);
+        if (Number.isNaN(sh) || Number.isNaN(sm)) return '-';
+        const total = (sh * 60) + sm + Math.max(0, durationMinutes || 0);
+        const endH = Math.floor(total / 60) % 24;
+        const endM = total % 60;
+        return formatTime(`${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`);
+    };
 
     const openCreateModal = async () => {
         setEditingId(null);
@@ -184,8 +193,8 @@ export const RecurringAppointmentsPage = () => {
                                 <tr className="border-b border-surfaceHighlight bg-surfaceHighlight/20">
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Name / Type</th>
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Pattern</th>
-                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Time</th>
-                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Duration</th>
+                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Start Time</th>
+                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">End Time</th>
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Date Range</th>
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider text-right">Actions</th>
                                 </tr>
@@ -200,7 +209,7 @@ export const RecurringAppointmentsPage = () => {
                                         <td className="px-4 py-4 text-sm font-medium text-text">{getTypeName(t.appointment_type_id, t.appointment_name)}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{rruleToHuman(t.rrule)}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{formatTime(t.start_time)}</td>
-                                        <td className="px-4 py-4 text-sm text-textMuted">{t.duration_minutes} min</td>
+                                        <td className="px-4 py-4 text-sm text-textMuted">{getEndTime(t.start_time, t.duration_minutes)}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{formatDate(t.start_date)} — {formatDate(t.end_date)}</td>
                                         <td className="px-4 py-4 text-right">
                                             <div className="flex items-center justify-end gap-1">
@@ -250,14 +259,6 @@ export const RecurringAppointmentsPage = () => {
                 appointmentTypes={appointmentTypes}
                 initialData={editingData ?? undefined}
                 initialSelectedPartnerIds={editingSelectedPartnerIds}
-                onCreateAppointmentType={async (name) => {
-                    await lookupService.createAppointmentType(name);
-                    await queryClient.invalidateQueries({ queryKey: ['appointment-types'] });
-                }}
-                onDeleteAppointmentType={async (id) => {
-                    await lookupService.deleteAppointmentType(id);
-                    await queryClient.invalidateQueries({ queryKey: ['appointment-types'] });
-                }}
                 isEditing={!!editingId}
             />
         </div>

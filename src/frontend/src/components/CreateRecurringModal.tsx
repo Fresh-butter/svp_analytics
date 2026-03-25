@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Modal, Input, Select, Button } from './Common';
 import { TimePicker } from './TimePicker';
 import { PartnerPickerField } from './PartnerSelectorModal';
-import { LookupManagerModal } from './LookupManagerModal';
 import { RecurringFormState, useRecurringForm } from '../hooks/useAppointmentForm';
 import { validateRecurringForm } from '../utils/validation';
 import { format, addMonths } from 'date-fns';
@@ -18,8 +17,6 @@ interface CreateRecurringModalProps {
   allPartners?: Array<{ partner_id: string; partner_name: string; email?: string }>;
   initialData?: Partial<RecurringFormState>;
   initialSelectedPartnerIds?: string[];
-  onCreateAppointmentType?: (name: string) => Promise<void>;
-  onDeleteAppointmentType?: (id: string) => Promise<void>;
   defaultDate?: string;
   isEditing?: boolean;
 }
@@ -34,15 +31,12 @@ export function CreateRecurringModal({
   allPartners = [],
   initialData,
   initialSelectedPartnerIds,
-  onCreateAppointmentType,
-  onDeleteAppointmentType,
   defaultDate,
   isEditing = false,
 }: CreateRecurringModalProps) {
   const { form, updateForm, resetForm } = useRecurringForm();
   const [saving, setSaving] = useState(false);
   const [selectedPartnerIds, setSelectedPartnerIds] = useState<string[]>([]);
-  const [showManageAppointmentTypes, setShowManageAppointmentTypes] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -63,8 +57,6 @@ export function CreateRecurringModal({
     } else {
       setSelectedPartnerIds([]);
     }
-
-    setShowManageAppointmentTypes(false);
   }, [isOpen, initialData, defaultDate, initialSelectedPartnerIds, resetForm, updateForm]);
 
   const getFrequencyJson = () => {
@@ -126,18 +118,6 @@ export function CreateRecurringModal({
             </option>
           ))}
         </Select>
-
-        {(onCreateAppointmentType || onDeleteAppointmentType) && (
-          <div className="flex justify-end">
-            <button
-              className="text-xs text-primary hover:text-primary/80 transition-colors"
-              onClick={() => setShowManageAppointmentTypes(true)}
-              type="button"
-            >
-              Manage appointment types
-            </button>
-          </div>
-        )}
 
         <Select
           label="Group (Optional)"
@@ -265,17 +245,6 @@ export function CreateRecurringModal({
           </Button>
         </div>
       </form>
-
-      <LookupManagerModal
-        isOpen={showManageAppointmentTypes}
-        onClose={() => setShowManageAppointmentTypes(false)}
-        title="Manage Appointment Types"
-        addLabel="New Appointment Type"
-        options={appointmentTypes.map((t) => ({ id: t.appointment_type_id, name: t.type_name }))}
-        onCreate={onCreateAppointmentType || (async () => { })}
-        onDelete={onDeleteAppointmentType || (async () => { })}
-        emptyText="No appointment types found."
-      />
     </Modal>
   );
 }

@@ -560,22 +560,6 @@ export const CalendarPage = () => {
         investees={investees}
         allPartners={allPartners}
         initialData={appointmentForm.form.app_id ? appointmentForm.form : undefined}
-        onCreateAppointmentType={async (name) => {
-          const type = await lookupService.createAppointmentType(name);
-          setAppointmentTypes([...appointmentTypes, type]);
-        }}
-        onDeleteAppointmentType={async (id) => {
-          await lookupService.deleteAppointmentType(id);
-          setAppointmentTypes(appointmentTypes.filter(t => t.appointment_type_id !== id));
-        }}
-        onCreateGroupType={async (name) => {
-          const type = await lookupService.createGroupType(name);
-          setGroupTypes([...groupTypes, type]);
-        }}
-        onDeleteGroupType={async (id) => {
-          await lookupService.deleteGroupType(id);
-          setGroupTypes(groupTypes.filter(t => t.group_type_id !== id));
-        }}
       />
 
       {/* Recurring Creation/Edit Modal */}
@@ -588,14 +572,6 @@ export const CalendarPage = () => {
         investees={investees}
         allPartners={allPartners}
         initialData={recurringForm.form.rec_app_id ? recurringForm.form : undefined}
-        onCreateAppointmentType={async (name) => {
-          const type = await lookupService.createAppointmentType(name);
-          setAppointmentTypes([...appointmentTypes, type]);
-        }}
-        onDeleteAppointmentType={async (id) => {
-          await lookupService.deleteAppointmentType(id);
-          setAppointmentTypes(appointmentTypes.filter((t) => t.appointment_type_id !== id));
-        }}
       />
 
     </div>

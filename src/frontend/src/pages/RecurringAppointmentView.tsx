@@ -71,6 +71,16 @@ export const RecurringAppointmentViewPage = () => {
     return d.toLocaleString();
   };
 
+  const getEndTime = (startTime?: string | null, durationMinutes?: number | null) => {
+    if (!startTime) return '-';
+    const [sh, sm] = startTime.split(':').map(Number);
+    if (Number.isNaN(sh) || Number.isNaN(sm)) return '-';
+    const total = (sh * 60) + sm + Math.max(0, durationMinutes || 0);
+    const endH = Math.floor(total / 60) % 24;
+    const endM = total % 60;
+    return formatTime(`${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`);
+  };
+
   if (isLoading) return <div className="p-12 text-center text-textMuted">Loading recurring template...</div>;
   if (!template) return <div className="p-12 text-center text-textMuted">Recurring template not found.</div>;
 
@@ -104,7 +114,7 @@ export const RecurringAppointmentViewPage = () => {
             <h1 className="text-2xl font-bold text-text">Recurring Template Details</h1>
             <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-textMuted">
               <span className="flex items-center gap-1"><Repeat size={14} /> {rruleToHuman(template.rrule)}</span>
-              <span className="flex items-center gap-1"><Clock size={14} /> {formatTime(template.start_time)}</span>
+              <span className="flex items-center gap-1"><Clock size={14} /> {formatTime(template.start_time)} - {getEndTime(template.start_time, template.duration_minutes)}</span>
               <span className="flex items-center gap-1"><Calendar size={14} /> {formatDate(template.start_date)} - {formatDate(template.end_date)}</span>
             </div>
           </div>
@@ -121,7 +131,7 @@ export const RecurringAppointmentViewPage = () => {
           <div><span className="text-textMuted">Name:</span> <span className="text-text ml-1">{titleName}</span></div>
           <div><span className="text-textMuted">Appointment Type:</span> <span className="text-text ml-1">{appointmentTypeName}</span></div>
           <div><span className="text-textMuted">Start Time:</span> <span className="text-text ml-1">{formatTime(template.start_time)}</span></div>
-          <div><span className="text-textMuted">Duration:</span> <span className="text-text ml-1">{template.duration_minutes} min</span></div>
+          <div><span className="text-textMuted">End Time:</span> <span className="text-text ml-1">{getEndTime(template.start_time, template.duration_minutes)}</span></div>
           <div><span className="text-textMuted">Date Range:</span> <span className="text-text ml-1">{formatDate(template.start_date)} - {formatDate(template.end_date)}</span></div>
           <div><span className="text-textMuted">RRule:</span> <span className="text-text ml-1 break-all">{template.rrule}</span></div>
           <div><span className="text-textMuted">Created At:</span> <span className="text-text ml-1">{fmtDateTime(template.created_at)}</span></div>

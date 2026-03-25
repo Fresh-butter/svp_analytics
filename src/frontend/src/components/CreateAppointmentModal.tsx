@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal, Input, Select, Button } from './Common';
 import { PartnerPickerField } from './PartnerSelectorModal';
-import { LookupManagerModal } from './LookupManagerModal';
 import { AppointmentType, GroupType } from '../types';
 import { validateAppointmentForm } from '../utils/validation';
 import { useAppointmentForm, AppointmentFormState } from '../hooks/useAppointmentForm';
@@ -19,10 +18,6 @@ interface CreateAppointmentModalProps {
   initialData?: Partial<AppointmentFormState>;
   initialSelectedPartnerIds?: string[];
   onGroupSelect?: (groupId: string) => Promise<void>;
-  onCreateAppointmentType?: (name: string) => Promise<void>;
-  onDeleteAppointmentType?: (id: string) => Promise<void>;
-  onCreateGroupType?: (name: string) => Promise<void>;
-  onDeleteGroupType?: (id: string) => Promise<void>;
   defaultDate?: string;
   isEditing?: boolean;
 }
@@ -37,21 +32,12 @@ export function CreateAppointmentModal({
   allPartners,
   initialData,
   initialSelectedPartnerIds,
-  onCreateAppointmentType,
-  onDeleteAppointmentType,
-  onCreateGroupType,
-  onDeleteGroupType,
   defaultDate,
   isEditing = false,
 }: CreateAppointmentModalProps) {
-  const { form, updateForm, selectedPartnerIds, setSelectedPartnerIds, resetForm } = useAppointmentForm(() => {
-    setShowManageAppointmentTypes(false);
-    setShowManageGroupTypes(false);
-  });
+  const { form, updateForm, selectedPartnerIds, setSelectedPartnerIds, resetForm } = useAppointmentForm();
 
   const [saving, setSaving] = useState(false);
-  const [showManageAppointmentTypes, setShowManageAppointmentTypes] = useState(false);
-  const [showManageGroupTypes, setShowManageGroupTypes] = useState(false);
 
   // Initialize once per open to avoid resetting user edits while modal is active.
   useEffect(() => {
@@ -119,15 +105,6 @@ export function CreateAppointmentModal({
               </option>
             ))}
           </Select>
-          <div className="flex justify-end">
-            <button
-              className="text-xs text-primary hover:text-primary/80 transition-colors"
-              onClick={() => setShowManageAppointmentTypes(true)}
-              type="button"
-            >
-              Manage appointment types
-            </button>
-          </div>
 
           <Input
             label="Date"
@@ -167,16 +144,6 @@ export function CreateAppointmentModal({
             ))}
           </Select>
 
-          <div className="flex justify-end">
-            <button
-              className="text-xs text-primary hover:text-primary/80 transition-colors"
-              onClick={() => setShowManageGroupTypes(true)}
-              type="button"
-            >
-              Manage group types
-            </button>
-          </div>
-
           <Select
             label="Investee (Optional)"
             value={form.investee_id || ''}
@@ -206,28 +173,6 @@ export function CreateAppointmentModal({
           </div>
         </form>
       </Modal>
-
-      <LookupManagerModal
-        isOpen={showManageAppointmentTypes}
-        onClose={() => setShowManageAppointmentTypes(false)}
-        title="Manage Appointment Types"
-        addLabel="New Appointment Type"
-        options={appointmentTypes.map(t => ({ id: t.appointment_type_id, name: t.type_name }))}
-        onCreate={onCreateAppointmentType || (async () => { })}
-        onDelete={onDeleteAppointmentType || (async () => { })}
-        emptyText="No appointment types found."
-      />
-
-      <LookupManagerModal
-        isOpen={showManageGroupTypes}
-        onClose={() => setShowManageGroupTypes(false)}
-        title="Manage Group Types"
-        addLabel="New Group Type"
-        options={groupTypes.map(t => ({ id: t.group_type_id, name: t.type_name }))}
-        onCreate={onCreateGroupType || (async () => { })}
-        onDelete={onDeleteGroupType || (async () => { })}
-        emptyText="No group types found."
-      />
     </>
   );
 }
