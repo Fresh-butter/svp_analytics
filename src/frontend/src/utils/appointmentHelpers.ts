@@ -5,8 +5,11 @@ import { isBefore, startOfDay, isSameDay } from 'date-fns';
  * date-fns parseISO treats date-only strings as UTC midnight,
  * which shifts the date in non-UTC timezones. This helper avoids that.
  */
-export function parseLocalDate(dateStr: string): Date {
-  const [y, m, d] = dateStr.split('-').map(Number);
+export function parseLocalDate(dateStr?: string | null): Date {
+  if (!dateStr) return new Date(NaN);
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return new Date(dateStr);
+  const [y, m, d] = parts.map(Number);
   return new Date(y, m - 1, d);
 }
 

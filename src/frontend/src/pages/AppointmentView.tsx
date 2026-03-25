@@ -79,6 +79,20 @@ export const AppointmentViewPage = () => {
     }
   };
 
+  const statusMutation = useMutation({
+    mutationFn: async (status: 'PENDING' | 'CANCELLED') => {
+      if (!id) return;
+      if (status === 'PENDING') return appointmentService.setPending(id);
+      return appointmentService.setCancelled(id);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['appointment-detail', id] }),
+        queryClient.invalidateQueries({ queryKey: ['appointments'] }),
+      ]);
+    },
+  });
+
   if (isLoading) return <div className="p-12 text-center text-textMuted">Loading appointment...</div>;
   if (!data?.appointmentDetail) return <div className="p-12 text-center text-textMuted">Appointment not found.</div>;
 
@@ -95,20 +109,6 @@ export const AppointmentViewPage = () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const canComplete = (normalizedStatus === 'PENDING' || normalizedStatus === 'SCHEDULED') && eventDate.getTime() <= today.getTime();
-
-  const statusMutation = useMutation({
-    mutationFn: async (status: 'PENDING' | 'CANCELLED') => {
-      if (!id) return;
-      if (status === 'PENDING') return appointmentService.setPending(id);
-      return appointmentService.setCancelled(id);
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['appointment-detail', id] }),
-        queryClient.invalidateQueries({ queryKey: ['appointments'] }),
-      ]);
-    },
-  });
 
   const fmtDateTime = (value?: string) => {
     if (!value) return '-';

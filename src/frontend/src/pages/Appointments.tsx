@@ -331,7 +331,13 @@ export const AppointmentsPage = () => {
 
                                                 const resp = await appointmentService.import(rows, chapterId);
                                                 await queryClient.invalidateQueries({ queryKey: ['appointments'] });
-                                                alert(`Import completed. Results:\n${JSON.stringify(resp.results, null, 2)}`);
+                                                
+                                                const errors = resp.results.filter((r: any) => !r.success);
+                                                if (errors.length > 0) {
+                                                    alert(`Import completed with errors.\n\n${errors.map((e: any) => `Row ${e.row + 1}: ${e.error}`).join('\n')}`);
+                                                } else {
+                                                    alert('Import completed successfully!');
+                                                }
                                             } catch (err: unknown) {
                                                 alert(err instanceof Error ? err.message : 'Import failed');
                                             } finally {

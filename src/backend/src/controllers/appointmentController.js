@@ -228,6 +228,11 @@ class AppointmentController {
         const nameKey = appointment_name.toLowerCase();
         const dateDescriptionKey = `${occurrence_date}::${uniqueDescription}`;
 
+        if (status !== 'COMPLETED') {
+          results.push({ row: idx, success: false, error: 'only completed appointments can be imported' });
+          continue;
+        }
+
         if (!appointment_name) {
           results.push({ row: idx, success: false, error: 'appointment_name required' });
           continue;
@@ -236,6 +241,13 @@ class AppointmentController {
           results.push({ row: idx, success: false, error: 'occurrence_date required' });
           continue;
         }
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+        if (occurrence_date > todayStr) {
+          results.push({ row: idx, success: false, error: 'completed appointments cannot be in the future' });
+          continue;
+        }
+
         if (!start_time) {
           results.push({ row: idx, success: false, error: 'start_time required' });
           continue;
