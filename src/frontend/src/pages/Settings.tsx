@@ -18,6 +18,7 @@ export const SettingsPage = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchAdmins = async () => {
     try {
@@ -80,7 +81,21 @@ export const SettingsPage = () => {
                     <div className="text-sm text-textMuted">{a.email}</div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Button variant="ghost" onClick={() => navigator.clipboard?.writeText(a.email)}>Copy Email</Button>
+                    <Button
+                      variant="ghost"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(a.email);
+                          setCopiedId(a.user_id);
+                          setTimeout(() => setCopiedId((id) => (id === a.user_id ? null : id)), 2000);
+                        } catch (err) {
+                          console.error('Clipboard write failed', err);
+                          alert('Failed to copy to clipboard');
+                        }
+                      }}
+                    >
+                      {copiedId === a.user_id ? 'Copied' : 'Copy Email'}
+                    </Button>
                     <Button variant="danger" onClick={() => handleRemove(a.user_id)}>Remove</Button>
                   </div>
                 </div>
