@@ -75,7 +75,8 @@ class MaterializationService {
     const appointment = await tx.appointments.create({
       data: {
         chapter_id: template.chapter_id,
-        appointment_type_id: template.appointment_type_id,
+        appointment_name: template.appointment_name || null,
+        appointment_type_id: template.appointment_type_id || null,
         group_type_id: template.group_type_id || null,
         occurrence_date: occDate,
         start_at: startAt,

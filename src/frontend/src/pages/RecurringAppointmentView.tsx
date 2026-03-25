@@ -54,6 +54,8 @@ export const RecurringAppointmentViewPage = () => {
     return data?.appointmentTypes.find((t) => t.appointment_type_id === template.appointment_type_id)?.type_name || '-';
   }, [data?.appointmentTypes, template]);
 
+  const titleName = template?.appointment_name || appointmentTypeName;
+
   const groupDetails = (template?.group && typeof template.group === 'object')
     ? (template.group as Record<string, unknown>)
     : null;
@@ -72,7 +74,7 @@ export const RecurringAppointmentViewPage = () => {
   if (isLoading) return <div className="p-12 text-center text-textMuted">Loading recurring template...</div>;
   if (!template) return <div className="p-12 text-center text-textMuted">Recurring template not found.</div>;
 
-  const heroName = appointmentTypeName || 'RC';
+  const heroName = titleName || 'RC';
 
   const handleMaterialize = async () => {
     if (!materializeDate) {
@@ -116,6 +118,7 @@ export const RecurringAppointmentViewPage = () => {
           <h2 className="text-lg font-semibold text-text">Overview</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div><span className="text-textMuted">Name:</span> <span className="text-text ml-1">{titleName}</span></div>
           <div><span className="text-textMuted">Appointment Type:</span> <span className="text-text ml-1">{appointmentTypeName}</span></div>
           <div><span className="text-textMuted">Start Time:</span> <span className="text-text ml-1">{formatTime(template.start_time)}</span></div>
           <div><span className="text-textMuted">Duration:</span> <span className="text-text ml-1">{template.duration_minutes} min</span></div>

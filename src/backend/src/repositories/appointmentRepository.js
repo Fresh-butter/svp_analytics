@@ -133,9 +133,10 @@ class AppointmentRepository {
     const appt = await prisma.appointments.create({
       data: {
         chapter_id: data.chapter_id,
+        appointment_name: data.appointment_name || null,
         investee_id: data.investee_id || null,
         group_type_id: data.group_type_id || null,
-        appointment_type_id: data.appointment_type_id,
+        appointment_type_id: data.appointment_type_id || null,
         occurrence_date: occDate,
         start_at: startAt,
         end_at: endAt,
@@ -194,7 +195,8 @@ class AppointmentRepository {
   static async update(id, data) {
     const updateData = {};
 
-    if (data.appointment_type_id !== undefined) updateData.appointment_type_id = data.appointment_type_id;
+    if (data.appointment_name !== undefined) updateData.appointment_name = data.appointment_name || null;
+    if (data.appointment_type_id !== undefined) updateData.appointment_type_id = data.appointment_type_id || null;
     if (data.group_type_id !== undefined) updateData.group_type_id = data.group_type_id || null;
     if (data.investee_id !== undefined) updateData.investee_id = data.investee_id || null;
     if (data.status !== undefined) updateData.status = data.status;

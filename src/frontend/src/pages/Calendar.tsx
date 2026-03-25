@@ -78,7 +78,10 @@ export const CalendarPage = () => {
   );
 
   const resolveMeetingTypeName = useCallback(
-    (meetingType?: string | null, appointmentTypeId?: string | null, fallback = 'Appointment') => {
+    (appName?: string | null, meetingType?: string | null, appointmentTypeId?: string | null, fallback = 'Appointment') => {
+      if (appName && appName.trim()) {
+        return appName.trim();
+      }
       const rawMeetingType = (meetingType || '').trim();
       if (rawMeetingType && appointmentTypeNameById.has(rawMeetingType)) {
         return appointmentTypeNameById.get(rawMeetingType) || fallback;
@@ -108,6 +111,7 @@ export const CalendarPage = () => {
       return {
         ...normalized,
         meeting_type: resolveMeetingTypeName(
+          normalized.appointment_name,
           normalized.meeting_type,
           normalized.appointment_type_id,
           'Appointment'
@@ -123,6 +127,7 @@ export const CalendarPage = () => {
       return {
         ...normalized,
         meeting_type: resolveMeetingTypeName(
+          normalized.appointment_name,
           normalized.meeting_type,
           normalized.appointment_type_id,
           'Recurring'

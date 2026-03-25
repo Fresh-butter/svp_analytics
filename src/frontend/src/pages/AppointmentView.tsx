@@ -73,10 +73,11 @@ export const AppointmentViewPage = () => {
   const detail = data.appointmentDetail;
   const appt = detail.appointment;
   const appointmentTypeName = data.appointmentTypes.find((t) => t.appointment_type_id === appt.appointment_type_id)?.type_name || '-';
+  const titleName = appt.appointment_name || appointmentTypeName;
   const groupTypeName = data.groupTypes.find((t) => t.group_type_id === appt.group_type_id)?.type_name || '-';
   const investeeDetails = detail.investee;
   const recurringDetails = detail.recurring_appointment;
-  const heroName = investeeDetails?.investee_name || appointmentTypeName || 'AP';
+  const heroName = investeeDetails?.investee_name || titleName || 'AP';
 
   const fmtDateTime = (value?: string) => {
     if (!value) return '-';
@@ -120,6 +121,7 @@ export const AppointmentViewPage = () => {
           <h2 className="text-lg font-semibold text-text">Overview</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div><span className="text-textMuted">Name:</span> <span className="text-text ml-1">{titleName}</span></div>
           <div><span className="text-textMuted">Appointment Type:</span> <span className="text-text ml-1">{appointmentTypeName}</span></div>
           <div><span className="text-textMuted">Group Type:</span> <span className="text-text ml-1">{groupTypeName}</span></div>
           <div><span className="text-textMuted">Investee:</span> <span className="text-text ml-1">{investeeDetails?.investee_name || '-'}</span></div>

@@ -70,6 +70,7 @@ export interface GroupPartner {
 export interface Appointment {
   appointment_id: string;
   chapter_id: string;
+  appointment_name?: string | null;
   rec_appointment_id?: string | null;
   appointment_type_id?: string | null;
   group_type_id?: string | null;
@@ -103,6 +104,7 @@ export interface Appointment {
 export interface RecurringAppointment {
   rec_appointment_id: string;
   chapter_id: string;
+  appointment_name?: string | null;
   group_id?: string | null;
   appointment_type_id?: string | null;
   start_time: string;       // HH:MM:SS

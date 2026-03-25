@@ -179,6 +179,7 @@ export const AppointmentsPage = () => {
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="border-b border-surfaceHighlight bg-surfaceHighlight/20">
+                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Name</th>
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Date</th>
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Time</th>
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Investee</th>
@@ -193,6 +194,9 @@ export const AppointmentsPage = () => {
                                         className="hover:bg-surfaceHighlight/30 transition-colors cursor-pointer"
                                         onClick={() => navigate(`/appointments/${appt.appointment_id}`)}
                                     >
+                                        <td className="px-4 py-4 text-sm font-medium text-text">
+                                            {appt.appointment_name || appointmentTypes.find(t => t.appointment_type_id === appt.appointment_type_id)?.type_name || 'Appointment'}
+                                        </td>
                                         <td className="px-4 py-4 text-sm text-text">{formatDate(appt.occurrence_date)}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{formatTime(appt.start_at)} – {formatTime(appt.end_at)}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{appt.investee_name || '-'}</td>

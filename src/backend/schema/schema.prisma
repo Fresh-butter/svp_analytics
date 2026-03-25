@@ -41,6 +41,7 @@ model appointment_types {
 model appointments {
   appointment_id         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   chapter_id             String                  @db.Uuid
+  appointment_name       String?                 @db.VarChar(200)
   appointment_type_id    String?                 @db.Uuid
   group_type_id          String?                 @db.Uuid
   occurrence_date        DateTime                @db.Date
@@ -194,6 +195,7 @@ model recurring_appointment_partners {
 model recurring_appointments {
   rec_appointment_id             String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   chapter_id                     String                           @db.Uuid
+  appointment_name               String?                          @db.VarChar(200)
   group_id                       String?                          @db.Uuid
   appointment_type_id            String?                          @db.Uuid
   start_time                     DateTime                         @db.Time(6)

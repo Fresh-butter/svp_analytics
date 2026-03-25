@@ -46,11 +46,11 @@ class AppointmentController {
    */
   static async create(req, res) {
     try {
-      const { chapter_id, occurrence_date, start_at, end_at, appointment_type_id } = req.body;
-      if (!chapter_id || !(occurrence_date || req.body.appointment_date) || !(start_at || req.body.start_time) || !(end_at || req.body.end_time) || !appointment_type_id) {
+      const { chapter_id, occurrence_date, start_at, end_at } = req.body;
+      if (!chapter_id || !(occurrence_date || req.body.appointment_date) || !(start_at || req.body.start_time) || !(end_at || req.body.end_time)) {
         return res.status(400).json({
           success: false,
-          error: { code: 'VALIDATION', message: 'chapter_id, occurrence_date, start_at, end_at, and appointment_type_id are required' },
+          error: { code: 'VALIDATION', message: 'chapter_id, occurrence_date, start_at, and end_at are required' },
         });
       }
       const appointment = await AppointmentRepository.create(req.body);

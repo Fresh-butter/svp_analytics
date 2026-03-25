@@ -3,6 +3,7 @@ import { INITIAL_APP_STATE, INITIAL_REC_STATE } from '../constants/calendar';
 import { format, addMonths } from 'date-fns';
 
 export interface AppointmentFormState {
+  appointment_name?: string;
   meeting_type?: string;
   meeting_date?: string;
   occurrence_date?: string;
@@ -23,6 +24,7 @@ export interface AppointmentFormState {
 }
 
 export interface RecurringFormState {
+  appointment_name?: string;
   meeting_type?: string;
   rec_app_start_date?: string;
   rec_app_end_date?: string;

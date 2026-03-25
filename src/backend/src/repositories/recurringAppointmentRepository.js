@@ -66,8 +66,9 @@ class RecurringAppointmentRepository {
     const template = await prisma.recurring_appointments.create({
       data: {
         chapter_id: data.chapter_id,
+        appointment_name: data.appointment_name || null,
         group_id: data.group_id || null,
-        appointment_type_id: data.appointment_type_id,
+        appointment_type_id: data.appointment_type_id || null,
         start_time: parseTime(data.start_time || data.start_at),
         duration_minutes: parseInt(data.duration_minutes),
         rrule: data.rrule,
@@ -100,7 +101,7 @@ class RecurringAppointmentRepository {
     const dateFields = ['start_date', 'end_date'];
     const timeFields = ['start_time'];
     const intFields = ['duration_minutes'];
-    const strFields = ['appointment_type_id', 'group_id', 'investee_id', 'rrule'];
+    const strFields = ['appointment_name', 'appointment_type_id', 'group_id', 'investee_id', 'rrule'];
 
     for (const f of dateFields) {
       if (data[f] !== undefined) updateData[f] = parseLocalDate(data[f]);

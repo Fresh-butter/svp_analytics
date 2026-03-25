@@ -108,11 +108,16 @@ export function CreateRecurringModal({
       title={isEditing ? 'Edit Recurring Series' : 'New Recurring Series'}
     >
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+        <Input
+          label="Appointment Name (Optional)"
+          type="text"
+          value={form.appointment_name || ''}
+          onChange={(e) => updateForm({ appointment_name: e.target.value })}
+        />
         <Select
-          label="Appointment Type"
+          label="Appointment Type (Optional)"
           value={form.meeting_type || ''}
           onChange={(e) => updateForm({ meeting_type: e.target.value })}
-          required
         >
           <option value="">Select type...</option>
           {appointmentTypes.map((t) => (

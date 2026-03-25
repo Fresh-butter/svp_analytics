@@ -18,11 +18,6 @@ export function validateAppointmentForm(data: {
   app_id?: string;
   appointment_id?: string;
 }): ValidationResult {
-  // Check appointment type
-  if (!data.meeting_type && !data.appointment_type_id) {
-    return { valid: false, error: 'Appointment type is required' };
-  }
-
   // Check date
   const date = data.meeting_date || data.occurrence_date;
   if (!date) {
@@ -64,14 +59,14 @@ export function validateRecurringForm(data: {
   rec_app_start_date?: string;
   rec_app_end_date?: string;
 }): ValidationResult {
-  if (!data.meeting_type) {
-    return { valid: false, error: 'Meeting type is required' };
-  }
   if (!data.rec_app_start_date) {
     return { valid: false, error: 'Start date is required' };
   }
   if (!data.rec_app_end_date) {
     return { valid: false, error: 'End date is required' };
+  }
+  if (data.rec_app_end_date < data.rec_app_start_date) {
+    return { valid: false, error: 'End date cannot be less than Start date' };
   }
   return { valid: true };
 }

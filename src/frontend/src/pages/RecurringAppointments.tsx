@@ -48,7 +48,7 @@ export const RecurringAppointmentsPage = () => {
     const allGroups = groups.map((g) => ({ group_id: g.group_id, group_name: g.group_name }));
     const allPartners = partners.map((p) => ({ partner_id: p.partner_id, partner_name: p.partner_name, email: p.email }));
 
-    const getTypeName = (id?: string | null) => appointmentTypes.find(t => t.appointment_type_id === id)?.type_name || '-';
+    const getTypeName = (id?: string | null, name?: string | null) => name || appointmentTypes.find(t => t.appointment_type_id === id)?.type_name || '-';
 
     const openCreateModal = async () => {
         setEditingId(null);
@@ -172,7 +172,7 @@ export const RecurringAppointmentsPage = () => {
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="border-b border-surfaceHighlight bg-surfaceHighlight/20">
-                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Type</th>
+                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Name / Type</th>
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Pattern</th>
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Time</th>
                                     <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider">Duration</th>
@@ -187,7 +187,7 @@ export const RecurringAppointmentsPage = () => {
                                         className="hover:bg-surfaceHighlight/30 transition-colors cursor-pointer"
                                         onClick={() => navigate(`/recurring-appointments/${t.rec_appointment_id}`)}
                                     >
-                                        <td className="px-4 py-4 text-sm font-medium text-text">{getTypeName(t.appointment_type_id)}</td>
+                                        <td className="px-4 py-4 text-sm font-medium text-text">{getTypeName(t.appointment_type_id, t.appointment_name)}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{rruleToHuman(t.rrule)}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{formatTime(t.start_time)}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{t.duration_minutes} min</td>

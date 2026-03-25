@@ -55,15 +55,23 @@ class RecurringAppointmentController {
    */
   static async create(req, res) {
     try {
-      const { chapter_id, start_time, duration_minutes, rrule, start_date, end_date, appointment_type_id } = req.body;
+      const { chapter_id, start_time, duration_minutes, rrule, start_date, end_date } = req.body;
 
-      if (!chapter_id || !start_time || !duration_minutes || !rrule || !start_date || !end_date || !appointment_type_id) {
+      if (!chapter_id || !start_time || !duration_minutes || !rrule || !start_date || !end_date) {
         res.status(400).json({
           success: false,
           error: {
             code: 'VALIDATION',
-            message: 'chapter_id, start_time, duration_minutes, rrule, start_date, end_date, and appointment_type_id are required',
+            message: 'chapter_id, start_time, duration_minutes, rrule, start_date, and end_date are required',
           },
+        });
+        return;
+      }
+
+      if (new Date(end_date) < new Date(start_date)) {
+        res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' },
         });
         return;
       }
@@ -115,6 +123,16 @@ class RecurringAppointmentController {
           res.status(400).json({
             success: false,
             error: { code: 'VALIDATION', message: `Invalid rrule: ${rruleValidation.error}` },
+          });
+          return;
+        }
+      }
+
+      if (req.body.start_date && req.body.end_date) {
+        if (new Date(req.body.end_date) < new Date(req.body.start_date)) {
+          res.status(400).json({
+            success: false,
+            error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' },
           });
           return;
         }
