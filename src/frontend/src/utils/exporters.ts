@@ -42,3 +42,35 @@ export async function exportTableToPdf(options: PdfTableOptions): Promise<void> 
 
   doc.save(options.fileName);
 }
+
+export function exportJsonToCsv(rows: Array<Record<string, unknown>>, fileName = 'export.csv') {
+  if (!rows || rows.length === 0) {
+    const blob = new Blob([""], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+    return;
+  }
+
+  const headers = Object.keys(rows[0]);
+  const csvRows = [headers.join(',')];
+
+  for (const row of rows) {
+    const vals = headers.map(h => {
+      const v = row[h];
+      if (v == null) return '';
+      const s = typeof v === 'string' ? v : String(v);
+      // escape quotes
+      return `"${s.replace(/"/g, '""')}"`;
+    });
+    csvRows.push(vals.join(','));
+  }
+
+  const csvContent = csvRows.join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  link.click();
+}
