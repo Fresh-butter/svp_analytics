@@ -53,7 +53,7 @@ export const MetricsByCategory = ({
     }, [categoryData]);
 
     const columns: Column<AnalyticsCategory>[] = [
-        { header: 'Category Name', accessor: 'category', sortable: true },
+        { header: 'Appointment Type', accessor: 'category', sortable: true },
         {
             header: 'Distinct Partners', accessor: 'distinct_partners', sortable: true,
             render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.distinct_partners), 1)} color="bg-blue-500" />
@@ -193,7 +193,7 @@ export const MetricsByCategory = ({
             {/* Bar + Doughnut side by side */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                 <div className="md:col-span-3 bg-surface p-5 rounded-xl border border-surfaceHighlight h-72">
-                    <p className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">{metricLabel[selectedMetric]} by Category</p>
+                    <p className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">{metricLabel[selectedMetric]} by Appointment Type</p>
                     <Bar
                         data={barChartData}
                         options={{

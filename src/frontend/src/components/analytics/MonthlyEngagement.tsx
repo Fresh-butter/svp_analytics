@@ -61,7 +61,7 @@ export const MonthlyEngagement = ({
             header: 'Distinct Partners', accessor: 'distinct_partners_engaged', sortable: true,
             render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.distinct_partners_engaged), 1)} color="bg-emerald-500" />
         },
-        { header: 'Category Context', accessor: 'category', sortable: true },
+        { header: 'Appointment Type', accessor: 'category', sortable: true },
         { header: 'Attendance %', accessor: 'attendance_percentage', sortable: true, render: (v) => <BarCell value={typeof v === 'number' ? v : (Number(v) || 0)} max={100} color="bg-amber-500" /> },
     ];
 
@@ -133,13 +133,13 @@ export const MonthlyEngagement = ({
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-textMuted mb-1">Category</label>
+                    <label className="block text-xs font-medium text-textMuted mb-1">Appointment Type</label>
                     <select
                         className="w-full bg-surface border border-surfaceHighlight rounded-lg px-3 py-2 text-sm text-text"
                         value={categoryFilter}
                         onChange={(e) => setCategoryFilter(e.target.value)}
                     >
-                        <option value="">All Categories</option>
+                        <option value="">All Appointment Types</option>
                         {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                 </div>

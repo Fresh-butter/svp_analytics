@@ -68,7 +68,7 @@ export const AttendanceByPartner = ({
 
     const columns: Column<AnalyticsPartner>[] = [
         { header: 'Partner Name', accessor: 'partner_name', sortable: true },
-        { header: 'Category', accessor: 'category', sortable: true },
+        { header: 'Appointment Type', accessor: 'category', sortable: true },
         { header: 'Investee', accessor: 'investee_name', sortable: true },
         {
             header: 'Meetings Attended', accessor: 'meetings_attended', sortable: true,
@@ -129,13 +129,13 @@ export const AttendanceByPartner = ({
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-textMuted mb-1">Category</label>
+                    <label className="block text-xs font-medium text-textMuted mb-1">Appointment Type</label>
                     <select
                         className="w-full bg-surface border border-surfaceHighlight rounded-lg px-3 py-2 text-sm text-text"
                         value={categoryFilter}
                         onChange={(e) => setCategoryFilter(e.target.value)}
                     >
-                        <option value="">All Categories</option>
+                        <option value="">All Appointment Types</option>
                         {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                 </div>

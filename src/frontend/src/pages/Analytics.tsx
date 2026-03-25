@@ -210,7 +210,7 @@ export const AnalyticsPage = () => {
 
   const tabs = [
     { id: 'attendance' as const, label: 'Attendance by Partner', icon: Users },
-    { id: 'categories' as const, label: 'Metrics by Category', icon: BarChart2 },
+    { id: 'categories' as const, label: 'Metrics by Appointment Type', icon: BarChart2 },
     { id: 'monthly' as const, label: 'Monthly Engagement', icon: Calendar },
     { id: 'investees' as const, label: 'Investee Analytics', icon: Target },
   ];
