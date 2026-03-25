@@ -41,16 +41,6 @@ export function validateAppointmentForm(data: {
     return { valid: false, error: 'End time must be after start time' };
   }
 
-  // Check if trying to create in the past (but allow if editing)
-  const isEditing = !!(data.app_id || data.appointment_id);
-  if (!isEditing) {
-    const eventDate = parseLocalDate(date);
-    const today = startOfDay(new Date());
-    if (isBefore(eventDate, today)) {
-      return { valid: false, error: 'Cannot create a meeting in the past. Please select a future date.' };
-    }
-  }
-
   return { valid: true };
 }
 
@@ -58,6 +48,7 @@ export function validateRecurringForm(data: {
   meeting_type?: string;
   rec_app_start_date?: string;
   rec_app_end_date?: string;
+  rec_app_id?: string;
 }): ValidationResult {
   if (!data.rec_app_start_date) {
     return { valid: false, error: 'Start date is required' };
@@ -67,6 +58,15 @@ export function validateRecurringForm(data: {
   }
   if (data.rec_app_end_date < data.rec_app_start_date) {
     return { valid: false, error: 'End date cannot be less than Start date' };
+  }
+
+  const isEditing = !!data.rec_app_id;
+  if (!isEditing) {
+    const startDate = parseLocalDate(data.rec_app_start_date);
+    const today = startOfDay(new Date());
+    if (isBefore(startDate, today)) {
+      return { valid: false, error: 'Cannot create a recurring series in the past. Please select a future start date.' };
+    }
   }
   return { valid: true };
 }

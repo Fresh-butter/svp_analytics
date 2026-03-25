@@ -68,6 +68,16 @@ class RecurringAppointmentController {
         return;
       }
 
+      // Start date cannot be in the past
+      const todayString = new Date().toISOString().split('T')[0];
+      if (start_date < todayString) {
+        res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION', message: 'Cannot create a recurring series in the past. Please select a future start date.' },
+        });
+        return;
+      }
+
       if (new Date(end_date) < new Date(start_date)) {
         res.status(400).json({
           success: false,
