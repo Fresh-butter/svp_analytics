@@ -62,6 +62,7 @@ export const MonthlyEngagement = ({
             render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.distinct_partners_engaged), 1)} color="bg-emerald-500" />
         },
         { header: 'Category Context', accessor: 'category', sortable: true },
+        { header: 'Attendance %', accessor: 'attendance_percentage', sortable: true, render: (v) => <BarCell value={typeof v === 'number' ? v : (Number(v) || 0)} max={100} color="bg-amber-500" /> },
     ];
 
     const chartData = {
@@ -185,7 +186,24 @@ export const MonthlyEngagement = ({
             {/* Chart */}
             <div className="bg-surface p-5 rounded-xl border border-surfaceHighlight h-80">
                 <Line
-                    data={chartData}
+                    data={{
+                        labels: chartData.labels,
+                        datasets: [
+                            ...chartData.datasets,
+                            {
+                                label: 'Attendance %',
+                                data: filteredData.map(d => d.attendance_percentage ?? (d.meetings_accepted ? (d.meetings_attended / d.meetings_accepted) * 100 : 0)),
+                                borderColor: 'rgb(245, 158, 11)',
+                                backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                                yAxisID: 'y1',
+                                borderWidth: 2.5,
+                                tension: 0.4,
+                                pointBackgroundColor: 'rgb(245, 158, 11)',
+                                pointBorderWidth: 3,
+                                pointRadius: 4,
+                            }
+                        ]
+                    }}
                     options={{
                         responsive: true,
                         maintainAspectRatio: false,
@@ -209,7 +227,9 @@ export const MonthlyEngagement = ({
                                 display: true,
                                 position: 'right',
                                 grid: { drawOnChartArea: false },
-                                ticks: { font: { size: 11 } },
+                                ticks: { font: { size: 11 }, callback: (v: any) => `${v}%` },
+                                min: 0,
+                                max: 100,
                             },
                         }
                     }}

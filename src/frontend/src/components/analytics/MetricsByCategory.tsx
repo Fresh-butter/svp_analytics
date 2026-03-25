@@ -46,7 +46,7 @@ export const MetricsByCategory = ({
 }: Props) => {
     // Filters
     // Chart Metric Selector
-    const [selectedMetric, setSelectedMetric] = useState<'meetings' | 'hours' | 'distinct_partners' | 'avg_duration_minutes'>('hours');
+    const [selectedMetric, setSelectedMetric] = useState<'meetings' | 'hours' | 'distinct_partners' | 'avg_duration_minutes' | 'attendance'>('hours');
 
     const filteredData = useMemo(() => {
         return categoryData;
@@ -77,6 +77,7 @@ export const MetricsByCategory = ({
         meetings: 'Total Meetings',
         distinct_partners: 'Distinct Partners',
         avg_duration_minutes: 'Avg Duration (min)',
+        attendance: 'Attendance %',
     };
 
     const barChartData = {
@@ -84,7 +85,7 @@ export const MetricsByCategory = ({
         datasets: [
             {
                 label: metricLabel[selectedMetric],
-                data: filteredData.map(d => d[selectedMetric]),
+                data: filteredData.map(d => selectedMetric === 'attendance' ? (d.attendance_percentage ?? (d.meetings_accepted ? (d.meetings_attended / d.meetings_accepted) * 100 : 0)) : d[selectedMetric]),
                 backgroundColor: filteredData.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length].bg),
                 borderColor: filteredData.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length].solid),
                 borderWidth: 0,
@@ -97,7 +98,7 @@ export const MetricsByCategory = ({
     const doughnutData = {
         labels: filteredData.map(d => d.category),
         datasets: [{
-            data: filteredData.map(d => d[selectedMetric]),
+            data: filteredData.map(d => selectedMetric === 'attendance' ? (d.attendance_percentage ?? (d.meetings_accepted ? (d.meetings_attended / d.meetings_accepted) * 100 : 0)) : d[selectedMetric]),
             backgroundColor: filteredData.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length].bg),
             borderColor: filteredData.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length].solid),
             borderWidth: 2,
@@ -134,13 +135,13 @@ export const MetricsByCategory = ({
                 <div className="w-full md:w-auto flex items-center gap-3">
                     <label className="block text-xs font-medium text-textMuted mb-1">Chart Metric</label>
                     <div className="flex bg-surface rounded-lg border border-surfaceHighlight p-1">
-                        {(['hours', 'meetings', 'distinct_partners', 'avg_duration_minutes'] as const).map(m => (
+                        {(['hours', 'meetings', 'distinct_partners', 'avg_duration_minutes', 'attendance'] as const).map(m => (
                             <button
                                 key={m}
                                 onClick={() => setSelectedMetric(m)}
                                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${selectedMetric === m ? 'bg-primary text-white' : 'text-textMuted hover:text-text'}`}
                             >
-                                {m === 'distinct_partners' ? 'Partners' : m === 'avg_duration_minutes' ? 'Avg Dur.' : m.charAt(0).toUpperCase() + m.slice(1)}
+                                {m === 'distinct_partners' ? 'Partners' : m === 'avg_duration_minutes' ? 'Avg Dur.' : m === 'attendance' ? 'Attendance %' : m.charAt(0).toUpperCase() + m.slice(1)}
                             </button>
                         ))}
                     </div>

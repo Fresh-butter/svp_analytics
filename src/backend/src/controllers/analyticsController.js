@@ -50,32 +50,36 @@ class AnalyticsController {
         },
       });
 
-      // Aggregate by partner
+      // Aggregate by partner — track attended and accepted (present + absent)
       const partnerMap = new Map();
       for (const appt of appointments) {
         const duration = appt.duration_minutes || this.calculateDuration(appt.start_at, appt.end_at);
         const investeeName = appt.investees?.investee_name || 'General';
 
         for (const ap of appt.appointment_partners) {
-          if (ap.is_present !== true) continue;
-
           const pid = ap.partners.partner_id;
+          const isPresent = ap.is_present === true;
+
           if (partnerMap.has(pid)) {
             const existing = partnerMap.get(pid);
-            existing.meetings_attended++;
-            existing.total_minutes += duration;
-            if (appt.occurrence_date > new Date(existing.last_meeting_date)) {
-              existing.last_meeting_date = formatRow({ created_at: appt.occurrence_date }).created_at.split('T')[0];
-              existing.investee_name = investeeName;
+            existing.meetings_accepted++;
+            if (isPresent) {
+              existing.meetings_attended++;
+              existing.total_minutes += duration;
+              if (appt.occurrence_date > new Date(existing.last_meeting_date)) {
+                existing.last_meeting_date = formatRow({ created_at: appt.occurrence_date }).created_at.split('T')[0];
+                existing.investee_name = investeeName;
+              }
             }
           } else {
             partnerMap.set(pid, {
               partner_id: pid,
               partner_name: ap.partners.partner_name,
-              meetings_attended: 1,
-              total_minutes: duration,
-              last_meeting_date: formatRow({ created_at: appt.occurrence_date }).created_at.split('T')[0],
-              investee_name: investeeName,
+              meetings_attended: isPresent ? 1 : 0,
+              meetings_accepted: 1,
+              total_minutes: isPresent ? duration : 0,
+              last_meeting_date: isPresent ? formatRow({ created_at: appt.occurrence_date }).created_at.split('T')[0] : null,
+              investee_name: isPresent ? investeeName : 'General',
             });
           }
         }
@@ -88,6 +92,8 @@ class AnalyticsController {
         category: 'Meeting',
         investee_name: p.investee_name,
         meetings_attended: p.meetings_attended,
+        meetings_accepted: p.meetings_accepted,
+        attendance_percentage: p.meetings_accepted > 0 ? Math.round((p.meetings_attended / p.meetings_accepted) * 1000) / 10 : 0,
         hours_spent: Math.round((p.total_minutes / 60) * 10) / 10,
         last_meeting_date: p.last_meeting_date,
       }));
@@ -143,21 +149,29 @@ class AnalyticsController {
         },
       });
 
-      // Aggregate by appointment_type
+      // Aggregate by appointment_type — track attendance and accepted counts
       const categoryMap = new Map();
       for (const appt of appointments) {
         const cat = appt.appointment_types?.type_name || 'General';
         const duration = appt.duration_minutes || this.calculateDuration(appt.start_at, appt.end_at);
 
         const uniquePartners = new Set();
+        let presentCount = 0;
+        let acceptedCount = 0;
         for (const ap of appt.appointment_partners) {
-          if (ap.is_present === true) uniquePartners.add(ap.partner_id);
+          acceptedCount++;
+          if (ap.is_present === true) {
+            presentCount++;
+            uniquePartners.add(ap.partner_id);
+          }
         }
 
         if (categoryMap.has(cat)) {
           const existing = categoryMap.get(cat);
           existing.meetings++;
           existing.total_minutes += duration;
+          existing.present_total += presentCount;
+          existing.accepted_total += acceptedCount;
           for (const p of uniquePartners) existing.partnerIds.add(p);
         } else {
           categoryMap.set(cat, {
@@ -165,6 +179,8 @@ class AnalyticsController {
             meetings: 1,
             total_minutes: duration,
             partnerIds: uniquePartners,
+            present_total: presentCount,
+            accepted_total: acceptedCount,
           });
         }
       }
@@ -175,6 +191,9 @@ class AnalyticsController {
         hours: Math.round((c.total_minutes / 60) * 10) / 10,
         meetings: c.meetings,
         avg_duration_minutes: Math.round(c.total_minutes / c.meetings),
+        meetings_accepted: c.accepted_total || 0,
+        meetings_attended: c.present_total || 0,
+        attendance_percentage: c.accepted_total > 0 ? Math.round((c.present_total / c.accepted_total) * 1000) / 10 : 0,
       }));
 
       res.json({ success: true, data });
@@ -225,20 +244,28 @@ class AnalyticsController {
         },
       });
 
-      // Aggregate by month
+      // Aggregate by month — track present and accepted counts
       const monthMap = new Map();
       for (const appt of appointments) {
         const month = appt.occurrence_date.toISOString().split('T')[0].substring(0, 7); // YYYY-MM
         const investeeName = appt.investees?.investee_name || 'General';
 
         const uniquePartners = new Set();
+        let presentCount = 0;
+        let acceptedCount = 0;
         for (const ap of appt.appointment_partners) {
-          if (ap.is_present === true) uniquePartners.add(ap.partner_id);
+          acceptedCount++;
+          if (ap.is_present === true) {
+            presentCount++;
+            uniquePartners.add(ap.partner_id);
+          }
         }
 
         if (monthMap.has(month)) {
           const existing = monthMap.get(month);
           existing.meetings_count++;
+          existing.present_total += presentCount;
+          existing.accepted_total += acceptedCount;
           for (const p of uniquePartners) existing.partnerIds.add(p);
         } else {
           monthMap.set(month, {
@@ -246,6 +273,8 @@ class AnalyticsController {
             meetings_count: 1,
             partnerIds: uniquePartners,
             investee_name: investeeName,
+            present_total: presentCount,
+            accepted_total: acceptedCount,
           });
         }
       }
@@ -258,6 +287,9 @@ class AnalyticsController {
           distinct_partners_engaged: m.partnerIds.size,
           category: 'Meeting',
           investee_name: m.investee_name,
+          meetings_attended: m.present_total || 0,
+          meetings_accepted: m.accepted_total || 0,
+          attendance_percentage: m.accepted_total > 0 ? Math.round((m.present_total / m.accepted_total) * 1000) / 10 : 0,
         }));
 
       res.json({ success: true, data });
@@ -304,21 +336,34 @@ class AnalyticsController {
         },
       });
 
-      // Aggregate by investee
+      // Aggregate by investee — track present and accepted counts
       const investeeMap = new Map();
       for (const appt of appointments) {
         const investeeName = appt.investees?.investee_name || 'General';
         const duration = appt.duration_minutes || this.calculateDuration(appt.start_at, appt.end_at);
 
+        let presentCount = 0;
+        let acceptedCount = 0;
+        if (appt.appointment_partners && appt.appointment_partners.length > 0) {
+          for (const ap of appt.appointment_partners) {
+            acceptedCount++;
+            if (ap.is_present === true) presentCount++;
+          }
+        }
+
         if (investeeMap.has(investeeName)) {
           const existing = investeeMap.get(investeeName);
           existing.meetings_count++;
           existing.total_minutes += duration;
+          existing.present_total += presentCount;
+          existing.accepted_total += acceptedCount;
         } else {
           investeeMap.set(investeeName, {
             investee_name: investeeName,
             meetings_count: 1,
             total_minutes: duration,
+            present_total: presentCount,
+            accepted_total: acceptedCount,
           });
         }
       }
@@ -328,6 +373,9 @@ class AnalyticsController {
         meetings_count: inv.meetings_count,
         hours_spent: Math.round((inv.total_minutes / 60) * 10) / 10,
         avg_meeting_duration: Math.round(inv.total_minutes / inv.meetings_count),
+        meetings_attended: inv.present_total || 0,
+        meetings_accepted: inv.accepted_total || 0,
+        attendance_percentage: inv.accepted_total > 0 ? Math.round((inv.present_total / inv.accepted_total) * 1000) / 10 : 0,
       }));
 
       res.json({ success: true, data });

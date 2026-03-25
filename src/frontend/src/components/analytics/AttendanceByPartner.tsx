@@ -53,7 +53,7 @@ export const AttendanceByPartner = ({
 }: Props) => {
     const [categoryFilter, setCategoryFilter] = useState('');
     const [investeeFilter, setInvesteeFilter] = useState('');
-    const [chartView, setChartView] = useState<'meetings' | 'hours'>('meetings');
+    const [chartView, setChartView] = useState<'meetings' | 'hours' | 'attendance'>('meetings');
 
     const filteredData = useMemo(() => {
         return allData.filter(p => {
@@ -77,6 +77,10 @@ export const AttendanceByPartner = ({
         {
             header: 'Hours Spent', accessor: 'hours_spent', sortable: true,
             render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.hours_spent), 1)} color="bg-emerald-500" />
+        },
+        {
+            header: 'Attendance %', accessor: 'attendance_percentage', sortable: true,
+            render: (v) => <BarCell value={typeof v === 'number' ? v : (Number(v) || 0)} max={100} color="bg-amber-500" />
         },
         { header: 'Last Meeting', accessor: 'last_meeting_date', sortable: true },
     ];
@@ -152,17 +156,17 @@ export const AttendanceByPartner = ({
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-text">Partner Performance</h3>
                 <div className="flex items-center gap-3">
-                    <div className="flex bg-surfaceHighlight/30 rounded-lg border border-surfaceHighlight p-1 gap-1">
-                        {(['meetings', 'hours'] as const).map(v => (
-                            <button
-                                key={v}
-                                onClick={() => setChartView(v)}
-                                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${chartView === v ? 'bg-primary text-white' : 'text-textMuted hover:text-text'}`}
-                            >
-                                {v === 'meetings' ? 'Meetings' : 'Hours'}
-                            </button>
-                        ))}
-                    </div>
+                        <div className="flex bg-surfaceHighlight/30 rounded-lg border border-surfaceHighlight p-1 gap-1">
+                            {(['meetings', 'hours', 'attendance'] as const).map(v => (
+                                <button
+                                    key={v}
+                                    onClick={() => setChartView(v)}
+                                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${chartView === v ? 'bg-primary text-white' : 'text-textMuted hover:text-text'}`}
+                                >
+                                    {v === 'meetings' ? 'Meetings' : v === 'hours' ? 'Hours' : 'Attendance %'}
+                                </button>
+                            ))}
+                        </div>
                     <Button
                         variant="secondary"
                         onClick={() => {
@@ -193,7 +197,28 @@ export const AttendanceByPartner = ({
             {/* Chart */}
             <div className="bg-surface p-5 rounded-xl border border-surfaceHighlight h-80">
                 <Bar
-                    data={chartData}
+                    data={
+                        chartView === 'attendance'
+                            ? {
+                                    labels: chartData.labels,
+                                    datasets: [
+                                        {
+                                            label: 'Attendance %',
+                                            data: filteredData.map(d => {
+                                                if (typeof d.attendance_percentage === 'number') return d.attendance_percentage;
+                                                if (d.meetings_accepted && d.meetings_accepted > 0) return (d.meetings_attended / d.meetings_accepted) * 100;
+                                                return 0;
+                                            }),
+                                            backgroundColor: filteredData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length]),
+                                            borderColor: filteredData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length].replace('0.8', '1')),
+                                            borderWidth: 0,
+                                            borderRadius: 8,
+                                            borderSkipped: false,
+                                        },
+                                    ]
+                                  }
+                            : chartData
+                    }
                     options={{
                         responsive: true,
                         maintainAspectRatio: false,
@@ -201,7 +226,7 @@ export const AttendanceByPartner = ({
                             legend: { display: false },
                             tooltip: {
                                 callbacks: {
-                                    label: (ctx) => ` ${ctx.parsed.y} ${chartView === 'meetings' ? 'meetings' : 'hours'}`
+                                    label: (ctx) => chartView === 'attendance' ? ` ${ctx.parsed.y}%` : ` ${ctx.parsed.y} ${chartView === 'meetings' ? 'meetings' : 'hours'}`
                                 }
                             }
                         },

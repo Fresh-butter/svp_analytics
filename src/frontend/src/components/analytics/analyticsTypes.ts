@@ -6,6 +6,8 @@ export interface AnalyticsPartner {
     category: string;
     investee_name: string;
     meetings_attended: number;
+    meetings_accepted?: number;
+    attendance_percentage?: number; // percent 0-100
     hours_spent: number;
     last_meeting_date: string;
 }
@@ -16,6 +18,9 @@ export interface AnalyticsCategory {
     hours: number;
     meetings: number;
     avg_duration_minutes: number;
+    meetings_attended?: number;
+    meetings_accepted?: number;
+    attendance_percentage?: number;
 }
 
 export interface AnalyticsMonthlyVideo {
@@ -24,6 +29,9 @@ export interface AnalyticsMonthlyVideo {
     distinct_partners_engaged: number;
     category: string;
     investee_name: string;
+    meetings_attended?: number;
+    meetings_accepted?: number;
+    attendance_percentage?: number;
 }
 
 export interface AnalyticsInvestee {
@@ -31,6 +39,9 @@ export interface AnalyticsInvestee {
     meetings_count: number;
     hours_spent: number;
     avg_meeting_duration: number;
+    meetings_attended?: number;
+    meetings_accepted?: number;
+    attendance_percentage?: number;
 }
 
 export interface AnalyticsData {

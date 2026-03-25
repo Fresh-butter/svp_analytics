@@ -62,6 +62,7 @@ export const InvesteeAnalytics = ({
             header: 'Avg Duration (min)', accessor: 'avg_meeting_duration', sortable: true,
             render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.avg_meeting_duration), 1)} color="bg-amber-500" />
         },
+        { header: 'Attendance %', accessor: 'attendance_percentage', sortable: true, render: (v) => <BarCell value={typeof v === 'number' ? v : (Number(v) || 0)} max={100} color="bg-amber-500" /> },
     ];
 
     const doughnutData = {
@@ -151,7 +152,14 @@ export const InvesteeAnalytics = ({
                     <p className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">Hours Distribution</p>
                     <div className="flex-1 flex items-center justify-center">
                         <Doughnut
-                            data={doughnutData}
+                            data={{
+                                ...doughnutData,
+                                datasets: [
+                                    {
+                                        ...doughnutData.datasets[0],
+                                    }
+                                ]
+                            }}
                             options={{
                                 responsive: true,
                                 maintainAspectRatio: false,
@@ -167,7 +175,22 @@ export const InvesteeAnalytics = ({
                     <p className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">Meetings by Investee</p>
                     <div className="flex-1">
                         <Bar
-                            data={barData}
+                            data={{
+                                ...barData,
+                                datasets: [
+                                    ...barData.datasets,
+                                    {
+                                        label: 'Attendance %',
+                                        data: filteredData.map(d => d.attendance_percentage ?? (d.meetings_accepted ? (d.meetings_attended / d.meetings_accepted) * 100 : 0)),
+                                        backgroundColor: filteredData.map((_, i) => INV_PALETTE[i % INV_PALETTE.length].light),
+                                        borderColor: filteredData.map((_, i) => INV_PALETTE[i % INV_PALETTE.length].solid),
+                                        borderWidth: 0,
+                                        borderRadius: 8,
+                                        borderSkipped: false,
+                                        type: 'bar' as const,
+                                    }
+                                ]
+                            }}
                             options={{
                                 responsive: true,
                                 maintainAspectRatio: false,
