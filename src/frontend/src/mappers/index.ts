@@ -50,6 +50,7 @@ export interface BackendAppointment {
   chapter_id: string;
   investee_id: string | null;
   investee_name?: string | null;
+  appointment_name?: string | null;
   appointment_type_id: string | null;
   group_type_id?: string | null;
   occurrence_date: string;
@@ -94,6 +95,7 @@ export interface BackendRecurringAppointment {
   rec_appointment_id: string;
   chapter_id: string;
   group_id: string | null;
+  appointment_name?: string | null;
   appointment_type_id: string | null;
   start_time: string;
   duration_minutes: number;
@@ -221,6 +223,7 @@ export function mapAppointment(b: BackendAppointment): Appointment {
   return {
     appointment_id: b.appointment_id,
     chapter_id: b.chapter_id,
+    appointment_name: b.appointment_name || undefined,
     appointment_type_id: b.appointment_type_id || undefined,
     group_type_id: b.group_type_id || undefined,
     occurrence_date: b.occurrence_date,
@@ -241,6 +244,7 @@ export function mapRecurringAppointment(b: BackendRecurringAppointment): Recurri
     rec_appointment_id: b.rec_appointment_id,
     chapter_id: b.chapter_id,
     group_id: b.group_id || undefined,
+    appointment_name: b.appointment_name || undefined,
     appointment_type_id: b.appointment_type_id || undefined,
     start_time: b.start_time || '',
     duration_minutes: b.duration_minutes,
@@ -299,6 +303,7 @@ export function groupToBackend(g: Partial<Group>, chapterId: string) {
 export function appointmentToBackend(a: Partial<Appointment>, chapterId: string) {
   return {
     chapter_id: chapterId,
+    appointment_name: a.appointment_name || undefined,
     appointment_type_id: a.appointment_type_id || null,
     group_type_id: a.group_type_id || null,
     start_at: a.start_at,
@@ -312,6 +317,7 @@ export function recurringToBackend(r: Partial<RecurringAppointment>, chapterId: 
   return {
     chapter_id: chapterId,
     group_id: r.group_id || null,
+    appointment_name: r.appointment_name || undefined,
     appointment_type_id: r.appointment_type_id || null,
     start_time: r.start_time,
     duration_minutes: r.duration_minutes,
