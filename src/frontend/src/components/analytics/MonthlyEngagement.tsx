@@ -2,9 +2,6 @@ import { useState, useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import { SharedAnalyticsTable, Column, BarCell } from './SharedAnalyticsTable';
 import type { AnalyticsMonthlyVideo } from './analyticsTypes';
-import { Button } from '../Common';
-import { Download } from 'lucide-react';
-import { exportJsonToCsv } from '../../utils/exporters';
 
 
 // Generate months from Jan 2023 to current month
@@ -156,32 +153,6 @@ export const MonthlyEngagement = ({
                 </div>
             </div>
 
-            <div className="flex justify-end">
-                <Button
-                    variant="secondary"
-                    onClick={() => {
-                        const rows: Array<Record<string, unknown>> = filteredData.map((r) => {
-                            const obj: Record<string, unknown> = {};
-                            columns.forEach((c) => {
-                                const key = c.header;
-                                let value: unknown = '';
-                                if (typeof c.accessor === 'string') {
-                                    // @ts-ignore
-                                    value = r[c.accessor];
-                                } else if (typeof c.accessor === 'function') {
-                                    try { value = c.accessor(r as any); } catch { value = '' }
-                                }
-                                obj[key] = value;
-                            });
-                            return obj;
-                        });
-
-                        exportJsonToCsv(rows, `monthly_engagement_${fromMonth}_to_${toMonth}.csv`);
-                    }}
-                >
-                    <Download size={14} /> Export
-                </Button>
-            </div>
 
             {/* Chart */}
             <div className="bg-surface p-5 rounded-xl border border-surfaceHighlight h-80">
@@ -192,7 +163,7 @@ export const MonthlyEngagement = ({
                             ...chartData.datasets,
                             {
                                 label: 'Attendance %',
-                                data: filteredData.map(d => d.attendance_percentage ?? (d.meetings_accepted ? (d.meetings_attended / d.meetings_accepted) * 100 : 0)),
+                                data: filteredData.map(d => d.attendance_percentage ?? (d.meetings_accepted ? (Number(d.meetings_attended ?? 0) / d.meetings_accepted) * 100 : 0)),
                                 borderColor: 'rgb(245, 158, 11)',
                                 backgroundColor: 'rgba(245, 158, 11, 0.08)',
                                 yAxisID: 'y1',

@@ -34,13 +34,15 @@ function normalizeOccurrenceDate(value) {
   const raw = toTrimmedString(value);
   if (!raw) return '';
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const rawDate = raw.split(/[\sT]/)[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return rawDate;
 
-  const dmy = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  const dmy = rawDate.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2}|\d{4})$/);
   if (dmy) {
     let day = Number(dmy[1]);
     let month = Number(dmy[2]);
-    const year = Number(dmy[3]);
+    let year = Number(dmy[3]);
+    if (year < 100) year += 2000;
 
     if (day <= 12 && month > 12) {
       const temp = day;
@@ -52,7 +54,7 @@ function normalizeOccurrenceDate(value) {
     if (!Number.isNaN(date.getTime())) return formatDateUTC(date);
   }
 
-  const parsed = new Date(raw);
+  const parsed = new Date(rawDate);
   if (Number.isNaN(parsed.getTime())) return '';
   return formatDateUTC(parsed);
 }
@@ -214,12 +216,12 @@ class AppointmentController {
       const seenDateDescription = new Set();
 
       for (const [idx, r] of rows.entries()) {
-        const appointment_name = toTrimmedString(r.appointment_name || r.name);
+        const appointment_name = toTrimmedString(r.appointment_name || r.name || r.app_name);
         const description = toTrimmedString(r.description || r.appointment_description || r.details);
-        const occurrence_date = normalizeOccurrenceDate(r.occurrence_date ?? r.date);
+        const occurrence_date = normalizeOccurrenceDate(r.occurrence_date ?? r.occurence_date ?? r.date);
         const investee_name = toTrimmedString(r.investee_name || r.investee);
-        const start_time = toTrimmedString(r.start_time || r.start_at);
-        const end_time = toTrimmedString(r.end_time || r.end_at);
+        const start_time = toTrimmedString(r.start_time || r.start_at || r.start);
+        const end_time = toTrimmedString(r.end_time || r.end_at || r.end);
         const group_type = toTrimmedString(r.group_type || r.group_type_name);
         const status = normalizeImportStatus(r.status || 'COMPLETED');
         const uniqueDescription = (description || appointment_name).toLowerCase();

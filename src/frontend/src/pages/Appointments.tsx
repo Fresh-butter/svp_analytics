@@ -280,14 +280,16 @@ export const AppointmentsPage = () => {
                                                             return dt.toISOString().slice(0, 10);
                                                         }
                                                     }
-                                                    const s = String(value).trim();
+                                                    let s = String(value).trim();
                                                     if (!s) return '';
+                                                    s = s.split(/[\sT]/)[0];
                                                     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-                                                    const dmy = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+                                                    const dmy = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2}|\d{4})$/);
                                                     if (dmy) {
                                                         let d = Number(dmy[1]);
                                                         let m = Number(dmy[2]);
-                                                        const y = Number(dmy[3]);
+                                                        let y = Number(dmy[3]);
+                                                        if (y < 100) y += 2000;
                                                         if (d <= 12 && m > 12) {
                                                             const temp = d;
                                                             d = m;
@@ -300,19 +302,30 @@ export const AppointmentsPage = () => {
                                                     return Number.isNaN(dt.getTime()) ? '' : dt.toISOString().slice(0, 10);
                                                 };
 
+                                                const getValue = (record: Record<string, any>, keys: string[]) => {
+                                                    for (const key of keys) {
+                                                        const value = record[key];
+                                                        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+                                                    }
+                                                    return '';
+                                                };
+
                                                 // Normalize headers to keys we expect
                                                 const rows = raw.map(r => {
                                                     const lower: Record<string, any> = {};
-                                                    for (const k of Object.keys(r)) lower[k.trim().toLowerCase()] = r[k];
+                                                    for (const k of Object.keys(r)) {
+                                                        const key = k.replace(/^\uFEFF/, '').trim().toLowerCase();
+                                                        lower[key] = r[k];
+                                                    }
                                                     return {
-                                                        appointment_name: lower['appointment name'] || lower['name'] || lower['appointment_name'] || '',
-                                                        description: lower['description'] || lower['appointment description'] || lower['details'] || '',
-                                                        occurrence_date: normalizeDate(lower['occurrence date'] ?? lower['date'] ?? lower['occurrence_date']),
-                                                        investee_name: lower['investee'] || lower['investee name'] || lower['investee_name'] || '',
-                                                        status: lower['status'] || 'COMPLETED',
-                                                        start_time: lower['start time'] || lower['start_time'] || '',
-                                                        end_time: lower['end time'] || lower['end_time'] || '',
-                                                        group_type: lower['group type'] || lower['group_type'] || '',
+                                                        appointment_name: getValue(lower, ['app name', 'appointment name', 'name', 'appointment_name']),
+                                                        description: getValue(lower, ['description', 'appointment description', 'details']),
+                                                        occurrence_date: normalizeDate(getValue(lower, ['occurence date', 'occurrence date', 'date', 'occurrence_date', 'occurence_date'])),
+                                                        investee_name: getValue(lower, ['investee name', 'investee', 'investee_name']),
+                                                        status: getValue(lower, ['status']) || 'COMPLETED',
+                                                        start_time: getValue(lower, ['start time', 'start_time', 'start']),
+                                                        end_time: getValue(lower, ['end time', 'end_time', 'end']),
+                                                        group_type: getValue(lower, ['group type(optionl)', 'group type(optional)', 'group type', 'group_type']),
                                                     };
                                                 });
 

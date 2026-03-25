@@ -2,9 +2,7 @@ import { useState, useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { SharedAnalyticsTable, Column, BarCell } from './SharedAnalyticsTable';
 import type { AnalyticsPartner } from './analyticsTypes';
-import { Button } from '../Common';
-import { Download } from 'lucide-react';
-import { exportJsonToCsv } from '../../utils/exporters';
+
 
 
 // Generate months from Jan 2023 to current month as { value: 'YYYY-MM', label: 'Mon Year' }[]
@@ -167,30 +165,6 @@ export const AttendanceByPartner = ({
                                 </button>
                             ))}
                         </div>
-                    <Button
-                        variant="secondary"
-                        onClick={() => {
-                            const rows: Array<Record<string, unknown>> = filteredData.map((r) => {
-                                const obj: Record<string, unknown> = {};
-                                columns.forEach((c) => {
-                                    const key = c.header;
-                                    let value: unknown = '';
-                                    if (typeof c.accessor === 'string') {
-                                        // @ts-ignore
-                                        value = r[c.accessor];
-                                    } else if (typeof c.accessor === 'function') {
-                                        try { value = c.accessor(r as any); } catch { value = '' }
-                                    }
-                                    obj[key] = value;
-                                });
-                                return obj;
-                            });
-
-                            exportJsonToCsv(rows, `attendance_by_partner_${fromMonth}_to_${toMonth}.csv`);
-                        }}
-                    >
-                        <Download size={14} /> Export
-                    </Button>
                 </div>
             </div>
 
