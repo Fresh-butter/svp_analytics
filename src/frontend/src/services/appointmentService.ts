@@ -84,6 +84,7 @@ export const appointmentService = {
     occurrence_date?: string;  // YYYY-MM-DD
     start_at: string;          // HH:MM:SS
     end_at: string;            // HH:MM:SS
+    appointment_name?: string;
     appointment_type_id?: string;
     group_type_id?: string;
     investee_id?: string;

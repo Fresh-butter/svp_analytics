@@ -378,10 +378,15 @@ export const CalendarPage = () => {
         investee_id: formData.investee_id || undefined,
       };
 
+      const isGroupTemplate = Boolean(formData.group_id);
+      const partnerIdsForSubmit = isGroupTemplate
+        ? (formData.rec_app_id ? [] : undefined)
+        : selectedPartnerIds;
+
       if (formData.rec_app_id) {
-        await recurringAppointmentService.update(formData.rec_app_id, payload, String(chapterId), selectedPartnerIds);
+        await recurringAppointmentService.update(formData.rec_app_id, payload, String(chapterId), partnerIdsForSubmit);
       } else {
-        await recurringAppointmentService.create(payload, String(chapterId), selectedPartnerIds);
+        await recurringAppointmentService.create(payload, String(chapterId), partnerIdsForSubmit);
       }
       await fetchRecurring();
       await fetchAppointments();

@@ -79,7 +79,8 @@ class RecurringAppointmentRepository {
     });
 
     const partnerList = data.partners || data.partner_ids;
-    if (partnerList && Array.isArray(partnerList) && partnerList.length > 0) {
+    const shouldPersistTemplatePartners = !data.group_id;
+    if (shouldPersistTemplatePartners && partnerList && Array.isArray(partnerList) && partnerList.length > 0) {
       const partnerInserts = partnerList.map(pId => ({
         chapter_id: data.chapter_id,
         rec_appointment_id: template.rec_appointment_id,
@@ -129,20 +130,26 @@ class RecurringAppointmentRepository {
       }
     }
 
-    // Replace partners if provided
+    // Sync recurring template partners when needed.
     const partnerList = data.partners || data.partner_ids;
-    if (partnerList !== undefined && Array.isArray(partnerList)) {
+    const needsPartnerSync = Array.isArray(partnerList) || data.group_id !== undefined;
+    if (needsPartnerSync) {
       const tmpl = await prisma.recurring_appointments.findUnique({
         where: { rec_appointment_id: id },
-        select: { chapter_id: true },
+        select: { chapter_id: true, group_id: true },
       });
       if (!tmpl) return null;
 
-      await prisma.recurring_appointment_partners.deleteMany({
-        where: { rec_appointment_id: id },
-      });
+      const effectiveGroupId = data.group_id !== undefined ? data.group_id : tmpl.group_id;
+      const shouldPersistTemplatePartners = !effectiveGroupId;
 
-      if (partnerList.length > 0) {
+      if (effectiveGroupId || Array.isArray(partnerList)) {
+        await prisma.recurring_appointment_partners.deleteMany({
+          where: { rec_appointment_id: id },
+        });
+      }
+
+      if (shouldPersistTemplatePartners && Array.isArray(partnerList) && partnerList.length > 0) {
         const partnerInserts = partnerList.map(pId => ({
           chapter_id: tmpl.chapter_id,
           rec_appointment_id: id,

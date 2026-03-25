@@ -306,6 +306,7 @@ export function appointmentToBackend(a: Partial<Appointment>, chapterId: string)
     appointment_name: a.appointment_name || undefined,
     appointment_type_id: a.appointment_type_id || null,
     group_type_id: a.group_type_id || null,
+    occurrence_date: a.occurrence_date,
     start_at: a.start_at,
     end_at: a.end_at,
     investee_id: a.investee_id || null,

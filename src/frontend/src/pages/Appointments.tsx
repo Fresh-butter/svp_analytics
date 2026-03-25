@@ -14,7 +14,7 @@ import { usePartners } from '../hooks/usePartners';
 import { useGroups } from '../hooks/useGroups';
 import { groupService } from '../services/groupService';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatDate, formatMonthYear, formatTime } from '../utils/formatters';
+import { formatDate, formatMonthYear, formatTime, formatTimeInput } from '../utils/formatters';
 import { AppointmentStatusBadge } from '../components/StatusBadge';
 import { AppointmentFormState } from '../hooks/useAppointmentForm';
 
@@ -124,9 +124,9 @@ export const AppointmentsPage = () => {
         const detail = await appointmentService.get(appt.appointment_id);
         setEditingAppointmentId(detail.appointment.appointment_id);
         setInitialFormData({
-            meeting_date: detail.appointment.occurrence_date,
-            planned_start: formatTime(detail.appointment.start_at),
-            planned_end: formatTime(detail.appointment.end_at),
+            meeting_date: detail.appointment.occurrence_date.split('T')[0],
+            planned_start: formatTimeInput(detail.appointment.start_at),
+            planned_end: formatTimeInput(detail.appointment.end_at),
             appointment_type_id: detail.appointment.appointment_type_id || '',
             meeting_type: detail.appointment.appointment_type_id || '',
             group_type_id: detail.appointment.group_type_id || '',
@@ -242,8 +242,20 @@ export const AppointmentsPage = () => {
                 onSubmit={async (formData, selectedPartnerIds) => {
                     try {
                         // Map form data (meeting_date, planned_start, planned_end) to API fields (occurrence_date, start_at, end_at)
-                        const startTime = `${formData.planned_start}:00`; // Frontend sends HH:MM, API expects HH:MM:SS
-                        const endTime = `${formData.planned_end}:00`;
+                        const normalizeTimeForApi = (value?: string): string | null => {
+                            if (!value) return null;
+                            const match = value.trim().match(/^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
+                            if (!match) return null;
+                            return `${match[1]}:${match[2]}:${match[3] || '00'}`;
+                        };
+
+                        const startTime = normalizeTimeForApi(formData.planned_start);
+                        const endTime = normalizeTimeForApi(formData.planned_end);
+                        if (!startTime || !endTime) {
+                            alert('Start and end times are required');
+                            return;
+                        }
+
                         const occDate = formData.meeting_date; // Keep as YYYY-MM-DD
 
                         if (editingAppointmentId) {

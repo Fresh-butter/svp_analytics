@@ -208,17 +208,49 @@ class AppointmentRepository {
     });
     if (!existing) return null;
 
+    const occurrenceDateInput = data.occurrence_date ?? data.appointment_date;
+    const baseOccurrenceDate = occurrenceDateInput ? parseLocalDate(occurrenceDateInput) : existing.occurrence_date;
+    if (occurrenceDateInput !== undefined) {
+      if (Number.isNaN(baseOccurrenceDate.getTime())) {
+        const err = new Error('Invalid occurrence_date');
+        err.code = 'VALIDATION';
+        throw err;
+      }
+      updateData.occurrence_date = baseOccurrenceDate;
+    }
+
+    const startAtInput = data.start_at !== undefined ? data.start_at : data.start_time;
+    const endAtInput = data.end_at !== undefined ? data.end_at : data.end_time;
+
     // Build proper TIMESTAMPTZ for start_at/end_at if provided
     // If a full ISO timestamp (contains 'T'), use directly; otherwise combine with occurrence_date
-    if (data.start_at !== undefined) {
-      updateData.start_at = (typeof data.start_at === 'string' && data.start_at.includes('T'))
-        ? new Date(data.start_at)
-        : buildTimestampIST(existing.occurrence_date, data.start_at);
+    if (startAtInput !== undefined) {
+      updateData.start_at = (typeof startAtInput === 'string' && startAtInput.includes('T'))
+        ? new Date(startAtInput)
+        : buildTimestampIST(baseOccurrenceDate, startAtInput);
+      if (Number.isNaN(updateData.start_at.getTime())) {
+        const err = new Error('Invalid start_at time');
+        err.code = 'VALIDATION';
+        throw err;
+      }
     }
-    if (data.end_at !== undefined) {
-      updateData.end_at = (typeof data.end_at === 'string' && data.end_at.includes('T'))
-        ? new Date(data.end_at)
-        : buildTimestampIST(existing.occurrence_date, data.end_at);
+    if (endAtInput !== undefined) {
+      updateData.end_at = (typeof endAtInput === 'string' && endAtInput.includes('T'))
+        ? new Date(endAtInput)
+        : buildTimestampIST(baseOccurrenceDate, endAtInput);
+      if (Number.isNaN(updateData.end_at.getTime())) {
+        const err = new Error('Invalid end_at time');
+        err.code = 'VALIDATION';
+        throw err;
+      }
+    }
+
+    const startCandidate = updateData.start_at || existing.start_at;
+    const endCandidate = updateData.end_at || existing.end_at;
+    if (startCandidate > endCandidate) {
+      const err = new Error('start_at must be before end_at');
+      err.code = 'VALIDATION';
+      throw err;
     }
 
     // Use transaction to update appointment and optionally sync partners

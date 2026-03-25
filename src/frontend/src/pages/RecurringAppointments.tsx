@@ -14,7 +14,7 @@ import { useGroups } from '../hooks/useGroups';
 import { usePartners } from '../hooks/usePartners';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatDate, formatTime } from '../utils/formatters';
+import { formatDate, formatTime, formatTimeInput } from '../utils/formatters';
 import { buildRRuleFromUiState, parseRecurrenceUiStateFromLegacy, parseRRuleToUiState } from '../utils/recurrence';
 
 export const RecurringAppointmentsPage = () => {
@@ -45,7 +45,11 @@ export const RecurringAppointmentsPage = () => {
     const { data: groups = [] } = useGroups();
     const { data: partners = [] } = usePartners();
     const allInvestees = investees.map((i) => ({ investee_id: i.investee_id, investee_name: i.investee_name }));
-    const allGroups = groups.map((g) => ({ group_id: g.group_id, group_name: g.group_name }));
+    const allGroups = groups.map((g) => ({
+        group_id: g.group_id,
+        group_name: g.group_name,
+        investee_id: g.investee_id || undefined,
+    }));
     const allPartners = partners.map((p) => ({ partner_id: p.partner_id, partner_name: p.partner_name, email: p.email }));
 
     const getTypeName = (id?: string | null, name?: string | null) => name || appointmentTypes.find(t => t.appointment_type_id === id)?.type_name || '-';
@@ -83,7 +87,7 @@ export const RecurringAppointmentsPage = () => {
                         nth_occurrence: recurrenceUi.nthOccurrence,
                         biweekly_pattern: recurrenceUi.biweeklyPattern,
                     }),
-                    planned_start: detail.start_time?.substring(0, 5) || '10:00',
+                    planned_start: formatTimeInput(detail.start_time),
                     planned_end: endTime,
                     group_id: (detail.group_id || undefined) as string | undefined,
                     investee_id: (detail.investee_id || undefined) as string | undefined,
@@ -130,18 +134,23 @@ export const RecurringAppointmentsPage = () => {
                 investee_id: formData.investee_id || undefined,
             };
 
+            const isGroupTemplate = Boolean(formData.group_id);
+            const partnerIdsForSubmit = isGroupTemplate
+                ? (editingId ? [] : undefined)
+                : selectedPartnerIds;
+
             if (editingId) {
                 await updateRecurring.mutateAsync({
                     ...payload,
                     rec_appointment_id: editingId,
                     chapter_id: chapterId,
-                    partnerIds: selectedPartnerIds,
+                    partnerIds: partnerIdsForSubmit,
                 });
             } else {
                 await createRecurring.mutateAsync({
                     ...payload,
                     chapter_id: chapterId,
-                    partnerIds: selectedPartnerIds,
+                    partnerIds: partnerIdsForSubmit,
                 });
             }
             setShowCreateModal(false);

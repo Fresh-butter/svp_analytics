@@ -20,6 +20,26 @@ export function formatTime(t: string | null | undefined): string {
   return `${hr % 12 || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`;
 }
 
+export function formatTimeInput(val: string | null | undefined): string {
+  if (!val) return '';
+  const trimmed = val.trim();
+
+  // Direct time values from backend/forms: HH:MM or HH:MM:SS
+  const plainTimeMatch = trimmed.match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (plainTimeMatch) return `${plainTimeMatch[1]}:${plainTimeMatch[2]}`;
+
+  // Datetime-like strings where time follows a space or 'T'
+  const embeddedTimeMatch = trimmed.match(/(?:T|\s)([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?/);
+  if (embeddedTimeMatch) return `${embeddedTimeMatch[1]}:${embeddedTimeMatch[2]}`;
+
+  const d = new Date(trimmed);
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  }
+
+  return '';
+}
+
 export function formatMonthYear(month: number, year: number): string {
   return new Date(year, month - 1, 1).toLocaleDateString(undefined, {
     month: 'long',

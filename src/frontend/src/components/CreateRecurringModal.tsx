@@ -13,7 +13,7 @@ interface CreateRecurringModalProps {
   onClose: () => void;
   onSubmit: (data: RecurringFormState, selectedPartnerIds: string[]) => Promise<void>;
   appointmentTypes?: Array<{ appointment_type_id: string; type_name: string }>;
-  groups: Array<{ group_id: string; group_name: string }>;
+  groups: Array<{ group_id: string; group_name: string; investee_id?: string | null }>;
   investees: Array<{ investee_id: string; investee_name: string }>;
   allPartners?: Array<{ partner_id: string; partner_name: string; email?: string }>;
   initialData?: Partial<RecurringFormState>;
@@ -142,7 +142,16 @@ export function CreateRecurringModal({
         <Select
           label="Group (Optional)"
           value={form.group_id || ''}
-          onChange={(e) => updateForm({ group_id: e.target.value })}
+          onChange={(e) => {
+            const nextGroupId = e.target.value;
+            const selectedGroup = groups.find((g) => g.group_id === nextGroupId);
+
+            updateForm({
+              group_id: nextGroupId,
+              // Default investee from selected group; user can still override manually.
+              investee_id: nextGroupId ? (selectedGroup?.investee_id || '') : form.investee_id,
+            });
+          }}
         >
           <option value="">None</option>
           {groups.map(g => (
