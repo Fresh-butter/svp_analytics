@@ -102,6 +102,10 @@ export const PartnersPage = () => {
         setIsModalOpen(true);
     };
 
+    const hasSubPartners = currentPartner?.partner_id 
+        ? partners.some(p => p.primary_partner_id === currentPartner.partner_id) 
+        : false;
+
     const onFormSubmit = async (data: PartnerFormData) => {
         const saveData: Partial<Partner> = {
             partner_name: data.partner_name,
@@ -404,6 +408,7 @@ export const PartnersPage = () => {
                         {...register('end_date')}
                         className="w-full bg-background border border-surfaceHighlight rounded-lg px-4 py-2.5 text-text focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                     />
+                    {errors.end_date && <p className="text-xs text-red-400">{errors.end_date.message}</p>}
                 </div>
             </div>
             <div className="space-y-1.5">
@@ -418,16 +423,20 @@ export const PartnersPage = () => {
                 <label className="block text-xs font-medium text-textMuted mb-1">Primary Partner <span className="text-textMuted/60">(Optional)</span></label>
                 <select
                     {...register('primary_partner_id')}
-                    className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary"
+                    disabled={hasSubPartners}
+                    className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <option value="">— None —</option>
                     {partners
-                        .filter(p => p.partner_id !== (currentPartner as Partner | null)?.partner_id)
+                        .filter(p => p.partner_id !== (currentPartner as Partner | null)?.partner_id && !p.primary_partner_id)
                         .map(p => (
                             <option key={p.partner_id} value={p.partner_id}>{p.partner_name}</option>
                         ))
                     }
                 </select>
+                {hasSubPartners && (
+                    <p className="text-xs text-amber-500 mt-1">This partner cannot be assigned a Primary Partner because they are already a Primary Partner to others.</p>
+                )}
             </div>
 
             <div className="pt-4 flex justify-end gap-3">

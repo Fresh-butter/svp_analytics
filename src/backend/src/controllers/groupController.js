@@ -36,9 +36,12 @@ class GroupController {
   /** POST /groups — create new group */
   static async create(req, res) {
     try {
-      const { chapter_id, investee_id, group_name, group_type_id, start_date } = req.body;
+      const { chapter_id, investee_id, group_name, group_type_id, start_date, end_date } = req.body;
       if (!chapter_id || !group_name || !group_type_id || !start_date) {
         return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id, group_name, group_type_id, and start_date are required' } });
+      }
+      if (end_date && new Date(end_date) < new Date(start_date)) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
       }
 
       const group = await GroupRepository.create(req.body);
@@ -56,6 +59,11 @@ class GroupController {
   /** PUT /groups/:id — update group metadata */
   static async update(req, res) {
     try {
+      const { start_date, end_date } = req.body;
+      if (start_date && end_date && new Date(end_date) < new Date(start_date)) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
+      }
+
       const group = await GroupRepository.update(req.params.id, req.body);
       if (group?.error) {
         return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: group.error } });

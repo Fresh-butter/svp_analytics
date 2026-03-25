@@ -35,9 +35,13 @@ class InvesteeController {
   /** POST /investees — create new investee */
   static async create(req, res) {
     try {
-      const { chapter_id, investee_name, email, start_date } = req.body;
+      const { chapter_id, investee_name, email, start_date, end_date } = req.body;
       if (!chapter_id || !investee_name || !email || !start_date) {
         res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id, investee_name, email, and start_date are required' } });
+        return;
+      }
+      if (end_date && new Date(end_date) < new Date(start_date)) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
         return;
       }
       const investee = await InvesteeRepository.create(req.body);
@@ -51,6 +55,11 @@ class InvesteeController {
   /** PUT /investees/:id — update investee details */
   static async update(req, res) {
     try {
+      const { start_date, end_date } = req.body;
+      if (start_date && end_date && new Date(end_date) < new Date(start_date)) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
+        return;
+      }
       const investee = await InvesteeRepository.update(req.params.id, req.body);
       if (!investee) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Investee not found' } }); return; }
       res.json({ success: true, data: investee });

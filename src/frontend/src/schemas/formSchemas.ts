@@ -8,7 +8,10 @@ export const partnerFormSchema = z.object({
   end_date: z.string(),
   primary_partner_id: z.string(),
   linkedin_url: z.string(),
-});
+}).refine(
+  (data) => !data.end_date || !data.start_date || data.end_date >= data.start_date,
+  { message: 'End date cannot be less than Start date', path: ['end_date'] }
+);
 export type PartnerFormData = z.infer<typeof partnerFormSchema>;
 
 // ─── Investee ─────────────────────────────────────────────────────────
@@ -17,7 +20,10 @@ export const investeeFormSchema = z.object({
   email: z.string(),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string(),
-});
+}).refine(
+  (data) => !data.end_date || !data.start_date || data.end_date >= data.start_date,
+  { message: 'End date cannot be less than Start date', path: ['end_date'] }
+);
 export type InvesteeFormData = z.infer<typeof investeeFormSchema>;
 
 // ─── Group ────────────────────────────────────────────────────────────

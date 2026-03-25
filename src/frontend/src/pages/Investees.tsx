@@ -348,6 +348,7 @@ export const InvesteesPage = () => {
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-textMuted">End Date</label>
                             <input type="date" {...register('end_date')} className="w-full bg-background border border-surfaceHighlight rounded-lg px-4 py-2.5 text-text focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
+                            {errors.end_date && <p className="text-xs text-red-400">{errors.end_date.message}</p>}
                         </div>
                     </div>
                     <div className="pt-4 flex justify-end gap-3">

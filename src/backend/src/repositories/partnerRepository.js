@@ -42,6 +42,13 @@ class PartnerRepository {
     return formatRow(row, { computeActive: true });
   }
 
+  static async hasSubPartners(id) {
+    const subPartner = await prisma.partners.findFirst({
+      where: { primary_partner_id: id }
+    });
+    return !!subPartner;
+  }
+
   /** Get partner with groups and appointments details (for GET /partners/:id) */
   static async findByIdWithDetails(id, queryFilters = {}) {
     const partner = await prisma.partners.findUnique({

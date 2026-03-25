@@ -34,10 +34,21 @@ class PartnerController {
   /** POST /partners — create new partner */
   static async create(req, res) {
     try {
-      const { chapter_id, partner_name, start_date } = req.body;
+      const { chapter_id, partner_name, start_date, end_date, primary_partner_id } = req.body;
       if (!chapter_id || !partner_name || !start_date) {
         res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id, partner_name, and start_date are required' } });
         return;
+      }
+      if (end_date && new Date(end_date) < new Date(start_date)) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
+        return;
+      }
+      if (primary_partner_id) {
+        const assignedPartner = await PartnerRepository.findById(primary_partner_id);
+        if (!assignedPartner || assignedPartner.primary_partner_id) {
+          res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Assigned primary partner must be a valid Primary Partner' } });
+          return;
+        }
       }
       const partner = await PartnerRepository.create(req.body);
       res.status(201).json({ success: true, data: partner });
@@ -54,6 +65,25 @@ class PartnerController {
   /** PUT /partners/:id — update partner details */
   static async update(req, res) {
     try {
+      const { start_date, end_date, primary_partner_id } = req.body;
+      if (start_date && end_date && new Date(end_date) < new Date(start_date)) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
+        return;
+      }
+      if (primary_partner_id !== undefined && primary_partner_id !== null && primary_partner_id !== '') {
+        const hasSub = await PartnerRepository.hasSubPartners(req.params.id);
+        if (hasSub) {
+          res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'This partner is a Primary Partner to others and cannot be assigned a Primary Partner' } });
+          return;
+        }
+
+        const assignedPartner = await PartnerRepository.findById(primary_partner_id);
+        if (!assignedPartner || assignedPartner.primary_partner_id) {
+          res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Assigned primary partner must be a valid Primary Partner' } });
+          return;
+        }
+      }
+
       const partner = await PartnerRepository.update(req.params.id, req.body);
       if (!partner) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Partner not found' } }); return; }
       res.json({ success: true, data: partner });
