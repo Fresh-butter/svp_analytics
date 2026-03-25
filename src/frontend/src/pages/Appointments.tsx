@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Button } from '../components/Common';
 import { CreateAppointmentModal } from '../components/CreateAppointmentModal';
@@ -59,6 +59,7 @@ export const AppointmentsPage = () => {
     const { data: partnerList = [] } = usePartners();
     const { data: groups = [] } = useGroups();
     const allPartners = partnerList.map((p) => ({ partner_id: p.partner_id, partner_name: p.partner_name }));
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const prevMonth = () => {
         if (month === 1) { setMonth(12); setYear(year - 1); }
@@ -153,8 +154,89 @@ export const AppointmentsPage = () => {
                     <p className="text-textMuted mt-1">Manage appointments by month.</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button onClick={openCreateModal}><Plus size={20} /> Add New</Button>
-                    <Button variant="secondary" onClick={openCreateUsingGroup}>Add Using Group</Button>
+                                <Button onClick={openCreateModal}><Plus size={20} /> Add New</Button>
+                                <div className="relative">
+                                    <button
+                                        onClick={() => fileInputRef.current?.click?.()}
+                                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors border rounded-lg bg-surfaceHighlight/30 text-text border-surfaceHighlight hover:bg-surfaceHighlight"
+                                    >
+                                        Import
+                                    </button>
+                                    <input
+                                        type="file"
+                                        accept=".csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                        style={{ display: 'none' }}
+                                        ref={fileInputRef}
+                                        onChange={async (e) => {
+                                            const f = e.target.files?.[0];
+                                            if (!f) return;
+                                            try {
+                                                const xlsx = await import('xlsx');
+                                                const data = await f.arrayBuffer();
+                                                const wb = xlsx.read(data, { type: 'array' });
+                                                const sheet = wb.Sheets[wb.SheetNames[0]];
+                                                const raw: any[] = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+
+                                                const normalizeDate = (value: unknown): string => {
+                                                    if (value === null || value === undefined || value === '') return '';
+                                                    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+                                                        return value.toISOString().slice(0, 10);
+                                                    }
+                                                    if (typeof value === 'number') {
+                                                        const parsed = xlsx.SSF.parse_date_code(value);
+                                                        if (parsed && parsed.y && parsed.m && parsed.d) {
+                                                            const dt = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+                                                            return dt.toISOString().slice(0, 10);
+                                                        }
+                                                    }
+                                                    const s = String(value).trim();
+                                                    if (!s) return '';
+                                                    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+                                                    const dmy = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+                                                    if (dmy) {
+                                                        let d = Number(dmy[1]);
+                                                        let m = Number(dmy[2]);
+                                                        const y = Number(dmy[3]);
+                                                        if (d <= 12 && m > 12) {
+                                                            const temp = d;
+                                                            d = m;
+                                                            m = temp;
+                                                        }
+                                                        const dt = new Date(Date.UTC(y, m - 1, d));
+                                                        if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+                                                    }
+                                                    const dt = new Date(s);
+                                                    return Number.isNaN(dt.getTime()) ? '' : dt.toISOString().slice(0, 10);
+                                                };
+
+                                                // Normalize headers to keys we expect
+                                                const rows = raw.map(r => {
+                                                    const lower: Record<string, any> = {};
+                                                    for (const k of Object.keys(r)) lower[k.trim().toLowerCase()] = r[k];
+                                                    return {
+                                                        appointment_name: lower['appointment name'] || lower['name'] || lower['appointment_name'] || '',
+                                                        occurrence_date: normalizeDate(lower['occurrence date'] ?? lower['date'] ?? lower['occurrence_date']),
+                                                        investee_name: lower['investee'] || lower['investee name'] || lower['investee_name'] || '',
+                                                        status: lower['status'] || 'COMPLETED',
+                                                        start_time: lower['start time'] || lower['start_time'] || '',
+                                                        end_time: lower['end time'] || lower['end_time'] || '',
+                                                        group_type: lower['group type'] || lower['group_type'] || '',
+                                                    };
+                                                });
+
+                                                const resp = await appointmentService.import(rows, chapterId);
+                                                await queryClient.invalidateQueries({ queryKey: ['appointments'] });
+                                                alert(`Import completed. Results:\n${JSON.stringify(resp.results, null, 2)}`);
+                                            } catch (err: unknown) {
+                                                alert(err instanceof Error ? err.message : 'Import failed');
+                                            } finally {
+                                                // reset file input
+                                                try { if (fileInputRef.current) fileInputRef.current.value = ''; } catch {}
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <Button variant="secondary" onClick={openCreateUsingGroup}>Add Using Group</Button>
                 </div>
             </div>
 

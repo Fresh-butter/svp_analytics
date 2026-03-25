@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
@@ -23,6 +23,9 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { appointmentService } from '../services/appointmentService';
+import { formatDate } from '../utils/formatters';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -178,18 +181,42 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showProfile, setShowProfile] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const profileRef = React.useRef<HTMLDivElement>(null);
+  const notificationsRef = React.useRef<HTMLDivElement>(null);
 
-  // Close profile dropdown on outside click
+  const { data: allAppointments = [] } = useQuery({
+    queryKey: ['header-notification-appointments'],
+    queryFn: () => appointmentService.getAll(),
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    enabled: Boolean(user),
+  });
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+
+  const pastAppointments = useMemo(() => {
+    return allAppointments
+      .filter((appointment) => {
+        const status = (appointment.status || '').toUpperCase();
+        return appointment.occurrence_date < todayKey && status !== 'COMPLETED' && status !== 'CANCELLED';
+      })
+      .sort((a, b) => b.occurrence_date.localeCompare(a.occurrence_date));
+  }, [allAppointments, todayKey]);
+
+  // Close dropdowns on outside click
   React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setShowProfile(false);
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
     };
-    if (showProfile) document.addEventListener('mousedown', handleClickOutside);
+    if (showProfile || showNotifications) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showProfile]);
+  }, [showProfile, showNotifications]);
 
   const handleLogout = async () => {
     await logout();
@@ -234,10 +261,41 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
            </div>
         </button>
 
-        <button className="relative text-textMuted hover:text-text transition-colors">
-          <Bell size={20} />
-          <span className="absolute -top-1 -right-1 w-2 h-2 bg-danger rounded-full"></span>
-        </button>
+        <div className="relative" ref={notificationsRef}>
+          <button
+            onClick={() => setShowNotifications((value) => !value)}
+            className="relative text-textMuted hover:text-text transition-colors"
+            title="Notifications"
+          >
+            <Bell size={20} />
+            {pastAppointments.length > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-danger text-white text-[10px] rounded-full flex items-center justify-center">
+                {pastAppointments.length > 9 ? '9+' : pastAppointments.length}
+              </span>
+            )}
+          </button>
+
+          {showNotifications && (
+            <div className="absolute right-0 top-10 w-80 bg-surface border border-surfaceHighlight rounded-lg shadow-xl z-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-surfaceHighlight">
+                <p className="text-sm font-semibold text-text">Notifications</p>
+                <p className="text-xs text-textMuted">Appointments in the past</p>
+              </div>
+              <div className="max-h-72 overflow-y-auto">
+                {pastAppointments.length === 0 ? (
+                  <p className="px-4 py-3 text-sm text-textMuted">No past pending appointments.</p>
+                ) : (
+                  pastAppointments.slice(0, 8).map((appointment) => (
+                    <div key={appointment.appointment_id} className="px-4 py-3 border-b border-surfaceHighlight/60 last:border-0">
+                      <p className="text-sm font-medium text-text">{appointment.appointment_name || 'Appointment'}</p>
+                      <p className="text-xs text-textMuted mt-1">{formatDate(appointment.occurrence_date)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         
         <div className="relative flex items-center gap-3 pl-6 border-l border-surfaceHighlight" ref={profileRef}>
           <div className="text-right hidden md:block">

@@ -114,6 +114,14 @@ export const appointmentService = {
     await api.delete(`/appointments/${id}`);
   },
 
+  /** Bulk import appointments (rows array) */
+  async import(rows: any[], chapterId?: string): Promise<{ results: any[] }> {
+    const payload: any = { rows };
+    if (chapterId) payload.chapter_id = chapterId;
+    const res = await api.post<{ success: boolean; results: any[] }>('/appointments/import', payload);
+    return { results: res.results || [] };
+  },
+
   // ── Calendar backward-compat shims (v1 API shape) ──
   /** @deprecated Calendar.tsx uses this; fetches all appointments for near months */
   async getAll(): Promise<Appointment[]> {

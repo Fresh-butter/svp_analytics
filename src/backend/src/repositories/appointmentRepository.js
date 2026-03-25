@@ -137,6 +137,7 @@ class AppointmentRepository {
         investee_id: data.investee_id || null,
         group_type_id: data.group_type_id || null,
         appointment_type_id: data.appointment_type_id || null,
+        status: data.status || 'PENDING',
         occurrence_date: occDate,
         start_at: startAt,
         end_at: endAt,

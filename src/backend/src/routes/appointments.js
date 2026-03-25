@@ -210,4 +210,13 @@ router.delete('/:id', authenticate, (req, res) => {
     return AppointmentController.remove(req, res);
 });
 
+  router.post('/import', authenticate, (req, res) => {
+    // #swagger.tags = ['Appointments']
+    // #swagger.summary = 'Import appointments'
+    // #swagger.description = 'Bulk import appointments (JSON array of rows). Validates uniqueness by name and by date+name.'
+    /* #swagger.security = [{ "bearerAuth": [] }] */
+    /* #swagger.requestBody = { required: true, content: { "application/json": { schema: { type: 'object', properties: { rows: { type: 'array' } } } } } } */
+    return AppointmentController.import(req, res);
+  });
+
 module.exports = router;
