@@ -44,6 +44,19 @@ class UserRepository {
     });
     return formatRow(row);
   }
+
+  static async findByChapter(chapter_id) {
+    const rows = await prisma.users.findMany({
+      where: { chapter_id, user_type: 'ADMIN' },
+      orderBy: { name: 'asc' },
+    });
+    return rows.map(formatRow);
+  }
+
+  static async deleteById(userId) {
+    const row = await prisma.users.delete({ where: { user_id: userId } });
+    return formatRow(row);
+  }
 }
 
 module.exports = { UserRepository };

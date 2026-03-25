@@ -17,6 +17,7 @@ const recurringAppointmentRoutes = require('./routes/recurringAppointments');
 const lookupRoutes = require('./routes/lookups');
 const feedbackRoutes = require('./routes/feedback');
 const analyticsRoutes = require('./routes/analytics');
+const settingsRoutes = require('./routes/settings');
 
 // Background jobs
 const { startMaterializeCron } = require('./jobs/materializeCron');
@@ -51,6 +52,7 @@ app.use('/api/recurring-appointments', recurringAppointmentRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api', lookupRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // ---------------------------------------------------------------------------
 // Health check
