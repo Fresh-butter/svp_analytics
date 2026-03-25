@@ -181,7 +181,12 @@ export const InvesteeAnalytics = ({
                                     ...barData.datasets,
                                     {
                                         label: 'Attendance %',
-                                        data: filteredData.map(d => d.attendance_percentage ?? (d.meetings_accepted ? (d.meetings_attended / d.meetings_accepted) * 100 : 0)),
+                                        data: filteredData.map(d => {
+                                            if (typeof d.attendance_percentage === 'number') return d.attendance_percentage;
+                                            const accepted = Number(d.meetings_accepted ?? 0);
+                                            const attended = Number(d.meetings_attended ?? 0);
+                                            return accepted > 0 ? (attended / accepted) * 100 : 0;
+                                        }),
                                         backgroundColor: filteredData.map((_, i) => INV_PALETTE[i % INV_PALETTE.length].light),
                                         borderColor: filteredData.map((_, i) => INV_PALETTE[i % INV_PALETTE.length].solid),
                                         borderWidth: 0,

@@ -135,4 +135,14 @@ router.get('/investee-analytics', authenticate, (req, res) => {
   return AnalyticsController.investeeAnalytics(req, res);
 });
 
+router.get('/export-appointments', authenticate, (req, res) => {
+  // #swagger.tags = ['Analytics']
+  // #swagger.summary = 'Export detailed appointment rows'
+  // #swagger.description = 'Returns a detailed row-per-partner list for appointments within a date range (YYYY-MM-DD).'
+  /* #swagger.security = [{ "bearerAuth": [] }] */
+  /* #swagger.parameters['from_date'] = { in: 'query', required: true, type: 'string', format: 'date', description: 'Start date (YYYY-MM-DD)' } */
+  /* #swagger.parameters['to_date'] = { in: 'query', required: true, type: 'string', format: 'date', description: 'End date (YYYY-MM-DD)' } */
+  return AnalyticsController.exportAppointments(req, res);
+});
+
 module.exports = router;

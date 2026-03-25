@@ -85,7 +85,16 @@ export const MetricsByCategory = ({
         datasets: [
             {
                 label: metricLabel[selectedMetric],
-                data: filteredData.map(d => selectedMetric === 'attendance' ? (d.attendance_percentage ?? (d.meetings_accepted ? (d.meetings_attended / d.meetings_accepted) * 100 : 0)) : d[selectedMetric]),
+                data: filteredData.map(d => {
+                    if (selectedMetric === 'attendance') {
+                        if (typeof d.attendance_percentage === 'number') return d.attendance_percentage;
+                        const accepted = Number(d.meetings_accepted ?? 0);
+                        const attended = Number(d.meetings_attended ?? 0);
+                        return accepted > 0 ? (attended / accepted) * 100 : 0;
+                    }
+                    // @ts-ignore - fallback for other metrics
+                    return d[selectedMetric];
+                }),
                 backgroundColor: filteredData.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length].bg),
                 borderColor: filteredData.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length].solid),
                 borderWidth: 0,
@@ -98,7 +107,16 @@ export const MetricsByCategory = ({
     const doughnutData = {
         labels: filteredData.map(d => d.category),
         datasets: [{
-            data: filteredData.map(d => selectedMetric === 'attendance' ? (d.attendance_percentage ?? (d.meetings_accepted ? (d.meetings_attended / d.meetings_accepted) * 100 : 0)) : d[selectedMetric]),
+            data: filteredData.map(d => {
+                if (selectedMetric === 'attendance') {
+                    if (typeof d.attendance_percentage === 'number') return d.attendance_percentage;
+                    const accepted = Number(d.meetings_accepted ?? 0);
+                    const attended = Number(d.meetings_attended ?? 0);
+                    return accepted > 0 ? (attended / accepted) * 100 : 0;
+                }
+                // @ts-ignore - fallback for other metrics
+                return d[selectedMetric];
+            }),
             backgroundColor: filteredData.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length].bg),
             borderColor: filteredData.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length].solid),
             borderWidth: 2,

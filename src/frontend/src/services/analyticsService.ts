@@ -98,3 +98,14 @@ export async function getInvesteeAnalytics(
   );
   return res.data;
 }
+
+/**
+ * Export detailed appointment rows for a date range (YYYY-MM-DD)
+ */
+export async function exportAppointmentRows(fromDate: string, toDate: string) {
+  const qs = new URLSearchParams();
+  qs.set('from_date', fromDate);
+  qs.set('to_date', toDate);
+  const res = await api.get<{ success: boolean; data: any[] }>(`/analytics/export-appointments?${qs.toString()}`);
+  return res.data;
+}

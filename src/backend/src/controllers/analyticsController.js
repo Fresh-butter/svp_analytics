@@ -106,6 +106,90 @@ class AnalyticsController {
   }
 
   /**
+   * GET /analytics/export-appointments
+   * Returns detailed rows suitable for CSV export (one row per partner per appointment)
+   * Query params:
+   *  - from_date: YYYY-MM-DD (required)
+   *  - to_date: YYYY-MM-DD (required)
+   */
+  static async exportAppointments(req, res) {
+    try {
+      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const from_date = req.query.from_date;
+      const to_date = req.query.to_date;
+
+      if (!from_date || !to_date) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'from_date and to_date are required (format: YYYY-MM-DD)' } });
+      }
+
+      const { parseLocalDate, formatRow } = require('../utils/helpers');
+      const startDate = parseLocalDate(from_date);
+      const endDate = parseLocalDate(to_date);
+
+      const appointments = await prisma.appointments.findMany({
+        where: {
+          chapter_id,
+          occurrence_date: { gte: startDate, lte: endDate },
+        },
+        include: {
+          appointment_partners: {
+            include: { partners: { select: { partner_id: true, partner_name: true } } },
+          },
+          appointment_types: { select: { type_name: true } },
+          investees: { select: { investee_name: true } },
+        },
+        orderBy: { occurrence_date: 'asc' },
+      });
+
+      const rows = [];
+      for (const appt of appointments) {
+        const apptDate = formatRow({ occurrence_date: appt.occurrence_date }).occurrence_date;
+        const apptName = appt.appointment_name || appt.appointment_types?.type_name || '';
+        const apptType = appt.appointment_types?.type_name || '';
+        const investee = appt.investees?.investee_name || '';
+        const duration = appt.duration_minutes ?? this.calculateDuration(appt.start_at, appt.end_at);
+        const modified = formatRow({ modified_at: appt.modified_at }).modified_at;
+
+        if (appt.appointment_partners && appt.appointment_partners.length > 0) {
+          for (const p of appt.appointment_partners) {
+            rows.push({
+              appointment_date: apptDate,
+              appointment_name: apptName,
+              appointment_type: apptType,
+              partner_name: p.partners?.partner_name || '',
+              investee,
+              duration_minutes: duration,
+              present: p.is_present === true ? 1 : 0,
+              absent_but_informed: 0, // Not tracked in current schema, placeholder
+              absent_after_accepting: 0, // Not tracked in current schema, placeholder
+              modified_at: modified,
+            });
+          }
+        } else {
+          // Row with no partners (export the appointment-level row)
+          rows.push({
+            appointment_date: apptDate,
+            appointment_name: apptName,
+            appointment_type: apptType,
+            partner_name: '',
+            investee,
+            duration_minutes: duration,
+            present: 0,
+            absent_but_informed: 0,
+            absent_after_accepting: 0,
+            modified_at: modified,
+          });
+        }
+      }
+
+      res.json({ success: true, data: rows });
+    } catch (err) {
+      console.error('Export appointments error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to export appointments' } });
+    }
+  }
+
+  /**
    * GET /analytics/metrics-by-category
    * Returns category metrics: meetings count, distinct partners, hours, avg duration
    * Query params:

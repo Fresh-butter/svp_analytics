@@ -8,6 +8,7 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react';
+import { ExportAnalytics } from '../components/analytics/ExportAnalytics';
 import { AttendanceByPartner } from '../components/analytics/AttendanceByPartner';
 import { MetricsByCategory } from '../components/analytics/MetricsByCategory';
 import { MonthlyEngagement } from '../components/analytics/MonthlyEngagement';
@@ -220,6 +221,9 @@ export const AnalyticsPage = () => {
         <div>
           <h2 className="text-3xl font-bold text-text">Analytics Dashboard</h2>
           <p className="text-textMuted mt-1">Detailed insights into partner engagement, meetings, and impact.</p>
+        </div>
+        <div className="flex items-center">
+          <ExportAnalytics />
         </div>
       </div>
 
