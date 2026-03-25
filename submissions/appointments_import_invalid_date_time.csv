@@ -1,0 +1,5 @@
+appointment_name,description,occurrence_date,investee_name,status,start_time,end_time,group_type
+Bad Date Format,Impossible month,2026-15-40,Investee A,COMPLETED,10:00,11:00,Workshop
+Text Date Parse Fail,Unparseable date string,not-a-date,Investee B,COMPLETED,10:00,11:00,Workshop
+Time Variant 1,Short hour format,2026-03-30,Investee C,COMPLETED,9:00,10:00,Workshop
+Time Variant 2,With seconds,2026-03-30,Investee D,COMPLETED,09:00:00,10:00:00,Workshop

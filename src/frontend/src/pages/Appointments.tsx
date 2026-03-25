@@ -215,6 +215,7 @@ export const AppointmentsPage = () => {
                                                     for (const k of Object.keys(r)) lower[k.trim().toLowerCase()] = r[k];
                                                     return {
                                                         appointment_name: lower['appointment name'] || lower['name'] || lower['appointment_name'] || '',
+                                                        description: lower['description'] || lower['appointment description'] || lower['details'] || '',
                                                         occurrence_date: normalizeDate(lower['occurrence date'] ?? lower['date'] ?? lower['occurrence_date']),
                                                         investee_name: lower['investee'] || lower['investee name'] || lower['investee_name'] || '',
                                                         status: lower['status'] || 'COMPLETED',

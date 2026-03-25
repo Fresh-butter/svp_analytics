@@ -1,0 +1,5 @@
+appointment_name,description,occurrence_date,investee_name,status,start_time,end_time,group_type
+Missing Date,No occurrence date,,Investee A,COMPLETED,10:00,11:00,Workshop
+Missing Name,No appointment name,2026-03-27,Investee B,COMPLETED,10:00,11:00,Workshop
+Missing Start,No start time,2026-03-28,Investee C,COMPLETED,,11:00,Workshop
+Missing End,No end time,2026-03-29,Investee D,COMPLETED,10:00,,Workshop

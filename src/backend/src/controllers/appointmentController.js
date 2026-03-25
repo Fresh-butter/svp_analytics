@@ -57,6 +57,15 @@ function normalizeOccurrenceDate(value) {
   return formatDateUTC(parsed);
 }
 
+function normalizeImportStatus(value) {
+  const raw = toTrimmedString(value).toUpperCase();
+  if (!raw) return 'COMPLETED';
+  if (raw === 'COMPLETED') return 'COMPLETED';
+  if (raw === 'CANCELLED' || raw === 'CANCELED') return 'CANCELLED';
+  if (raw === 'PENDING' || raw === 'SCHEDULED') return 'PENDING';
+  return 'PENDING';
+}
+
 class AppointmentController {
   /** GET /appointments — paginates by month, year */
   static async list(req, res) {
@@ -186,10 +195,10 @@ class AppointmentController {
   /**
    * POST /appointments/import
    * Accepts { rows: Array } where each row may contain:
-   *  - appointment_name, occurrence_date (YYYY-MM-DD), investee_name, status, start_time, end_time, group_type
+    *  - appointment_name, description, occurrence_date (YYYY-MM-DD), investee_name, status, start_time, end_time, group_type
    * Validations:
    *  - appointment_name must be present and unique within chapter
-   *  - occurrence_date + appointment_name must be unique
+    *  - occurrence_date + description must be unique (description falls back to appointment_name)
    * Creates appointments with provided fields; missing investee/group_type are left null.
    */
   static async import(req, res) {
@@ -201,14 +210,21 @@ class AppointmentController {
       if (rows.length === 0) return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'rows array required' } });
 
       const results = [];
+      const seenNames = new Set();
+      const seenDateDescription = new Set();
+
       for (const [idx, r] of rows.entries()) {
         const appointment_name = toTrimmedString(r.appointment_name || r.name);
+        const description = toTrimmedString(r.description || r.appointment_description || r.details);
         const occurrence_date = normalizeOccurrenceDate(r.occurrence_date ?? r.date);
         const investee_name = toTrimmedString(r.investee_name || r.investee);
         const start_time = toTrimmedString(r.start_time || r.start_at);
         const end_time = toTrimmedString(r.end_time || r.end_at);
         const group_type = toTrimmedString(r.group_type || r.group_type_name);
-        const status = toTrimmedString(r.status || 'COMPLETED').toUpperCase();
+        const status = normalizeImportStatus(r.status || 'COMPLETED');
+        const uniqueDescription = (description || appointment_name).toLowerCase();
+        const nameKey = appointment_name.toLowerCase();
+        const dateDescriptionKey = `${occurrence_date}::${uniqueDescription}`;
 
         if (!appointment_name) {
           results.push({ row: idx, success: false, error: 'appointment_name required' });
@@ -218,8 +234,29 @@ class AppointmentController {
           results.push({ row: idx, success: false, error: 'occurrence_date required' });
           continue;
         }
+        if (!start_time) {
+          results.push({ row: idx, success: false, error: 'start_time required' });
+          continue;
+        }
+        if (!end_time) {
+          results.push({ row: idx, success: false, error: 'end_time required' });
+          continue;
+        }
 
-        // Uniqueness checks
+        // Batch-level uniqueness checks (within the uploaded file)
+        if (seenNames.has(nameKey)) {
+          results.push({ row: idx, success: false, error: 'duplicate appointment_name in import file' });
+          continue;
+        }
+        seenNames.add(nameKey);
+
+        if (seenDateDescription.has(dateDescriptionKey)) {
+          results.push({ row: idx, success: false, error: 'duplicate occurrence_date + description in import file' });
+          continue;
+        }
+        seenDateDescription.add(dateDescriptionKey);
+
+        // Existing-data uniqueness checks
         const existingByName = await prisma.appointments.findFirst({ where: { chapter_id, appointment_name: { equals: appointment_name, mode: 'insensitive' } } });
         if (existingByName) {
           results.push({ row: idx, success: false, error: 'appointment_name already exists' });
@@ -229,6 +266,20 @@ class AppointmentController {
         const existingByDateAndName = await prisma.appointments.findFirst({ where: { chapter_id, occurrence_date: new Date(occurrence_date), appointment_name: { equals: appointment_name, mode: 'insensitive' } } });
         if (existingByDateAndName) {
           results.push({ row: idx, success: false, error: 'appointment with same date and name already exists' });
+          continue;
+        }
+
+        // Since there is no dedicated description column in appointments,
+        // date+description uniqueness is evaluated against appointment_name.
+        const existingByDateAndDescription = await prisma.appointments.findFirst({
+          where: {
+            chapter_id,
+            occurrence_date: new Date(occurrence_date),
+            appointment_name: { equals: description || appointment_name, mode: 'insensitive' },
+          },
+        });
+        if (existingByDateAndDescription) {
+          results.push({ row: idx, success: false, error: 'appointment with same date and description already exists' });
           continue;
         }
 
@@ -262,7 +313,7 @@ class AppointmentController {
             end_time: normalizeTime(end_time),
             investee_id,
             group_type_id,
-            status: status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
+            status,
           });
           results.push({ row: idx, success: true, appointment_id: created.appointment_id });
         } catch (err) {

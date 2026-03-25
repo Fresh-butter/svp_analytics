@@ -16,14 +16,15 @@ import {
   Bell,
   Sun,
   Moon,
-  LogOut
+  LogOut,
+  Trash2
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { appointmentService } from '../services/appointmentService';
 import { formatDate } from '../utils/formatters';
 
@@ -180,6 +181,7 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [showProfile, setShowProfile] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const profileRef = React.useRef<HTMLDivElement>(null);
@@ -197,12 +199,28 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
 
   const pastAppointments = useMemo(() => {
     return allAppointments
-      .filter((appointment) => {
-        const status = (appointment.status || '').toUpperCase();
-        return appointment.occurrence_date < todayKey && status !== 'COMPLETED' && status !== 'CANCELLED';
-      })
+      .filter((appointment) => appointment.occurrence_date < todayKey)
       .sort((a, b) => b.occurrence_date.localeCompare(a.occurrence_date));
   }, [allAppointments, todayKey]);
+
+  const handleOpenAppointment = (appointmentId: string) => {
+    setShowNotifications(false);
+    navigate(`/appointments/${appointmentId}`);
+  };
+
+  const handleDeleteAppointment = async (appointmentId: string) => {
+    const shouldDelete = window.confirm('Delete this appointment?');
+    if (!shouldDelete) return;
+    try {
+      await appointmentService.remove(appointmentId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['appointments'] }),
+        queryClient.invalidateQueries({ queryKey: ['header-notification-appointments'] }),
+      ]);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to delete appointment');
+    }
+  };
 
   // Close dropdowns on outside click
   React.useEffect(() => {
@@ -283,12 +301,27 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
               </div>
               <div className="max-h-72 overflow-y-auto">
                 {pastAppointments.length === 0 ? (
-                  <p className="px-4 py-3 text-sm text-textMuted">No past pending appointments.</p>
+                  <p className="px-4 py-3 text-sm text-textMuted">No appointments in the past.</p>
                 ) : (
                   pastAppointments.slice(0, 8).map((appointment) => (
                     <div key={appointment.appointment_id} className="px-4 py-3 border-b border-surfaceHighlight/60 last:border-0">
-                      <p className="text-sm font-medium text-text">{appointment.appointment_name || 'Appointment'}</p>
-                      <p className="text-xs text-textMuted mt-1">{formatDate(appointment.occurrence_date)}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <button
+                          onClick={() => handleOpenAppointment(appointment.appointment_id)}
+                          className="text-left flex-1 min-w-0"
+                        >
+                          <p className="text-sm font-medium text-text truncate">{appointment.appointment_name || 'Appointment'}</p>
+                          <p className="text-xs text-textMuted mt-1">{formatDate(appointment.occurrence_date)}</p>
+                          <p className="text-xs mt-1 text-textMuted">Status: {(appointment.status || 'PENDING').toUpperCase()}</p>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAppointment(appointment.appointment_id)}
+                          className="p-1 text-textMuted hover:text-danger"
+                          title="Delete appointment"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
