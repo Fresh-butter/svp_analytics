@@ -45,6 +45,7 @@ type AppointmentUpsertPayload = {
   occurrence_date?: string;
   start_at: string;
   end_at: string;
+  appointment_name?: string;
   appointment_type_id?: string;
   group_type_id?: string;
   investee_id?: string;
@@ -327,6 +328,7 @@ export const CalendarPage = () => {
         occurrence_date: occurrenceDate,
         start_at: startAt,
         end_at: endAt,
+        appointment_name: formData.appointment_name || undefined,
         appointment_type_id: formData.appointment_type_id || formData.meeting_type || undefined,
         group_type_id: formData.group_type_id || undefined,
         investee_id: formData.investee_id || undefined,
@@ -365,6 +367,7 @@ export const CalendarPage = () => {
       const [eh, em] = (formData.planned_end || '10:00').split(':').map(Number);
       const durationMinutes = Math.max(15, (eh * 60 + em) - (sh * 60 + sm));
       const payload = {
+        appointment_name: formData.appointment_name || undefined,
         appointment_type_id: formData.appointment_type_id || formData.meeting_type,
         start_time: `${plannedStart}:00`,
         duration_minutes: durationMinutes,

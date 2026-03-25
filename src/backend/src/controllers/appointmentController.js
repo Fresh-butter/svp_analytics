@@ -57,7 +57,7 @@ class AppointmentController {
       res.status(201).json({ success: true, data: appointment });
     } catch (err) {
       console.error('Create appointment error:', err);
-      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create appointment' } });
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to create appointment', stack: err.stack } });
     }
   }
 

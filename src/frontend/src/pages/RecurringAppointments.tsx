@@ -119,6 +119,7 @@ export const RecurringAppointmentsPage = () => {
             const rruleString = buildRRuleFromUiState(recurrenceUi);
 
             const payload: Partial<RecurringAppointment> = {
+                appointment_name: formData.appointment_name || undefined,
                 appointment_type_id: formData.appointment_type_id || formData.meeting_type,
                 start_time: startTime,
                 duration_minutes: durationMinutes,
