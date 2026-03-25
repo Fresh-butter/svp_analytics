@@ -157,7 +157,7 @@ class AppointmentController {
       if (!Array.isArray(attendance)) {
         res.status(400).json({
           success: false,
-          error: { code: 'VALIDATION', message: 'attendance array is required: [{partner_id, is_present}]' },
+          error: { code: 'VALIDATION', message: 'attendance array is required: [{partner_id, is_present, absent_informed?}]' },
         });
         return;
       }

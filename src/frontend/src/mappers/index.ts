@@ -85,6 +85,7 @@ export interface BackendAppointment {
   partners?: Array<{
     appointment_partner_id: string;
     is_present: boolean | null;
+    absent_informed?: boolean | null;
     partner_id: string;
     partner_name: string;
     email: string;

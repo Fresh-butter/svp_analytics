@@ -98,7 +98,7 @@ export interface Appointment {
   rec_app_id?: string;
   /** Internal Calendar state */
   group_id?: string;
-  partners?: Array<{ partner_id: string; partner_name: string; email: string; is_present: boolean | null }>;
+  partners?: Array<{ partner_id: string; partner_name: string; email: string; is_present: boolean | null; absent_informed?: boolean | null }>;
 }
 
 export interface RecurringAppointment {

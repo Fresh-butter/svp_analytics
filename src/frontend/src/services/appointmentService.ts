@@ -63,6 +63,7 @@ export const appointmentService = {
     partners: Array<{
       appointment_partner_id: string;
       is_present: boolean | null;
+      absent_informed?: boolean | null;
       partner_id: string;
       partner_name: string;
       email: string;
@@ -104,8 +105,18 @@ export const appointmentService = {
   },
 
   /** Mark appointment as complete with attendance */
-  async complete(id: string, attendance: Array<{ partner_id: string; is_present: boolean }>): Promise<Appointment> {
+  async complete(id: string, attendance: Array<{ partner_id: string; is_present: boolean; absent_informed?: boolean | null }>): Promise<Appointment> {
     const res = await api.patch<SingleResponse>(`/appointments/${id}/complete`, { attendance });
+    return mapAppointment(res.data);
+  },
+
+  async setPending(id: string): Promise<Appointment> {
+    const res = await api.put<SingleResponse>(`/appointments/${id}`, { status: 'PENDING' });
+    return mapAppointment(res.data);
+  },
+
+  async setCancelled(id: string): Promise<Appointment> {
+    const res = await api.put<SingleResponse>(`/appointments/${id}`, { status: 'CANCELLED' });
     return mapAppointment(res.data);
   },
 

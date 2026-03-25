@@ -88,7 +88,7 @@ router.post('/', authenticate, (req, res) => {
                  group_type_id: { type: 'string', format: 'uuid' },
                  investee_id: { type: 'string', format: 'uuid' },
                  group_id: { type: 'string', format: 'uuid' },
-                 status: { type: 'string', enum: ['PENDING', 'COMPLETED'], example: 'PENDING' },
+                 status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'CANCELLED'], example: 'PENDING' },
                  partners: {
                    type: 'array',
                    items: { type: 'string', format: 'uuid' },
@@ -129,7 +129,7 @@ router.put('/:id', authenticate, (req, res) => {
                  group_type_id: { type: 'string', format: 'uuid' },
                  investee_id: { type: 'string', format: 'uuid' },
                  group_id: { type: 'string', format: 'uuid' },
-                 status: { type: 'string', enum: ['PENDING', 'COMPLETED'] },
+                 status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
                  partners: {
                    type: 'array',
                    items: { type: 'string', format: 'uuid' }
@@ -172,12 +172,13 @@ router.patch('/:id/complete', authenticate, (req, res) => {
                      required: ['partner_id', 'is_present'],
                      properties: {
                        partner_id: { type: 'string', format: 'uuid' },
-                       is_present: { type: 'boolean' }
+                       is_present: { type: 'boolean' },
+                       absent_informed: { type: 'boolean', nullable: true }
                      }
                    },
                    example: [
-                     { partner_id: '550e8400-e29b-41d4-a716-446655440000', is_present: true },
-                     { partner_id: '660e8400-e29b-41d4-a716-446655440001', is_present: false }
+                     { partner_id: '550e8400-e29b-41d4-a716-446655440000', is_present: true, absent_informed: null },
+                     { partner_id: '660e8400-e29b-41d4-a716-446655440001', is_present: false, absent_informed: true }
                    ]
                  }
                }

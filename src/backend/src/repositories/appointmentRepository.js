@@ -90,6 +90,7 @@ class AppointmentRepository {
     const partners = row.appointment_partners.map(ap => ({
       appointment_partner_id: ap.app_partner_id,
       is_present: ap.is_present,
+      absent_informed: ap.absent_informed,
       partner_id: ap.partners.partner_id,
       partner_name: ap.partners.partner_name,
       email: ap.partners.email,
@@ -294,7 +295,7 @@ class AppointmentRepository {
    * SRS Complete:
    *  PATCH /appointments/:id/complete
    *  - Sets status = 'COMPLETED'
-   *  - Records attendance: [{partner_id, is_present}]
+  *  - Records attendance: [{partner_id, is_present, absent_informed?}]
    */
   static async complete(id, attendance) {
     const aid = id;
@@ -320,12 +321,20 @@ class AppointmentRepository {
 
       if (attendance && attendance.length > 0) {
         for (const record of attendance) {
+          const isPresent = Boolean(record.is_present);
+          const absentInformed = isPresent
+            ? null
+            : (typeof record.absent_informed === 'boolean' ? record.absent_informed : null);
+
           await tx.appointment_partners.updateMany({
             where: {
               appointment_id: aid,
               partner_id: record.partner_id,
             },
-            data: { is_present: record.is_present },
+            data: {
+              is_present: isPresent,
+              absent_informed: absentInformed,
+            },
           });
         }
       }

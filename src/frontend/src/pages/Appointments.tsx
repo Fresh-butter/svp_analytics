@@ -1,12 +1,12 @@
 import { useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button } from '../components/Common';
+import { Card, Button, Modal } from '../components/Common';
 import { CreateAppointmentModal } from '../components/CreateAppointmentModal';
 import { GroupSelectorModal } from '../components/GroupSelectorModal';
 import { Appointment } from '../types';
 import { useAppointments, useCreateAppointment, useDeleteAppointment } from '../hooks/useAppointments';
 import { useAuth } from '../context/AuthContext';
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, CheckCircle2 } from 'lucide-react';
 import { lookupService } from '../services/lookupService';
 import { appointmentService } from '../services/appointmentService';
 import { useInvestees } from '../hooks/useInvestees';
@@ -17,6 +17,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDate, formatMonthYear, formatTime, formatTimeInput } from '../utils/formatters';
 import { AppointmentStatusBadge } from '../components/StatusBadge';
 import { AppointmentFormState } from '../hooks/useAppointmentForm';
+import { parseLocalDate } from '../utils/appointmentHelpers';
+
+type AttendanceChoice = 'PRESENT' | 'ABSENT_INFORMED' | 'ABSENT_NOT_INFORMED';
 
 export const AppointmentsPage = () => {
     const navigate = useNavigate();
@@ -37,6 +40,12 @@ export const AppointmentsPage = () => {
     const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
     const [initialFormData, setInitialFormData] = useState<Partial<AppointmentFormState> | undefined>(undefined);
     const [initialPartnerIds, setInitialPartnerIds] = useState<string[]>([]);
+    const [showCompleteModal, setShowCompleteModal] = useState(false);
+    const [completingAppointmentId, setCompletingAppointmentId] = useState<string | null>(null);
+    const [completionMeta, setCompletionMeta] = useState<{ date: string; start: string; end: string } | null>(null);
+    const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
+    const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+    const [attendanceRows, setAttendanceRows] = useState<Array<{ partner_id: string; partner_name: string; choice: AttendanceChoice }>>([]);
 
     const queryClient = useQueryClient();
 
@@ -135,6 +144,88 @@ export const AppointmentsPage = () => {
         });
         setInitialPartnerIds((detail.partners || []).map((p) => String(p.partner_id)));
         setShowCreateModal(true);
+    };
+
+    const normalizeStatus = (status?: string | null) => (status || '').trim().toUpperCase();
+
+    const canCompleteOnOrBeforeToday = (dateStr?: string) => {
+        if (!dateStr) return false;
+        const eventDate = parseLocalDate(dateStr);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return eventDate.getTime() <= today.getTime();
+    };
+
+    const openCompleteFromTable = async (appt: Appointment) => {
+        if (!canCompleteOnOrBeforeToday(appt.occurrence_date)) {
+            alert('Completion is allowed only for current and past dates.');
+            return;
+        }
+
+        try {
+            const detail = await appointmentService.get(appt.appointment_id);
+            setCompletingAppointmentId(appt.appointment_id);
+            setCompletionMeta({
+                date: detail.appointment.occurrence_date,
+                start: detail.appointment.start_at,
+                end: detail.appointment.end_at,
+            });
+            setAttendanceRows(
+                (detail.partners || []).map((p) => ({
+                    partner_id: String(p.partner_id),
+                    partner_name: p.partner_name,
+                    choice:
+                        p.is_present === true
+                            ? 'PRESENT'
+                            : p.is_present === false
+                                ? (p.absent_informed === true ? 'ABSENT_INFORMED' : 'ABSENT_NOT_INFORMED')
+                                : 'PRESENT',
+                }))
+            );
+            setShowCompleteModal(true);
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : 'Failed to load appointment attendance');
+        }
+    };
+
+    const completeFromTable = async () => {
+        if (!completingAppointmentId) return;
+        try {
+            await appointmentService.complete(
+                completingAppointmentId,
+                attendanceRows.map((row) => ({
+                    partner_id: row.partner_id,
+                    is_present: row.choice === 'PRESENT',
+                    absent_informed:
+                        row.choice === 'PRESENT'
+                            ? null
+                            : row.choice === 'ABSENT_INFORMED',
+                }))
+            );
+            setShowCompleteModal(false);
+            setCompletingAppointmentId(null);
+            setAttendanceRows([]);
+            await queryClient.invalidateQueries({ queryKey: ['appointments'] });
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : 'Failed to complete appointment');
+        }
+    };
+
+    const updateStatus = async (appointmentId: string, nextStatus: 'PENDING' | 'CANCELLED') => {
+        try {
+            setStatusUpdatingId(appointmentId);
+            if (nextStatus === 'PENDING') {
+                await appointmentService.setPending(appointmentId);
+            } else {
+                await appointmentService.setCancelled(appointmentId);
+            }
+            setStatusMenuFor(null);
+            await queryClient.invalidateQueries({ queryKey: ['appointments'] });
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : 'Failed to update status');
+        } finally {
+            setStatusUpdatingId(null);
+        }
     };
 
     const handleDelete = async (id: string) => {
@@ -287,7 +378,7 @@ export const AppointmentsPage = () => {
                                             <AppointmentStatusBadge status={appt.status} />
                                         </td>
                                         <td className="px-4 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-1">
+                                            <div className="flex items-center justify-end gap-1 relative">
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -308,6 +399,56 @@ export const AppointmentsPage = () => {
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setStatusMenuFor((prev) => (prev === appt.appointment_id ? null : appt.appointment_id));
+                                                    }}
+                                                    className="p-1.5 text-textMuted hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors"
+                                                    title="Complete / Status"
+                                                >
+                                                    <CheckCircle2 size={16} />
+                                                </button>
+
+                                                {statusMenuFor === appt.appointment_id && (
+                                                    <div
+                                                        className="absolute right-0 top-8 z-20 min-w-52 bg-surface border border-surfaceHighlight rounded-lg shadow-lg p-1"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        {(normalizeStatus(appt.status) === 'PENDING' || normalizeStatus(appt.status) === 'SCHEDULED') && (
+                                                            <button
+                                                                className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-surfaceHighlight disabled:opacity-50"
+                                                                disabled={!canCompleteOnOrBeforeToday(appt.occurrence_date) || statusUpdatingId === appt.appointment_id}
+                                                                onClick={async () => {
+                                                                    await openCompleteFromTable(appt);
+                                                                    setStatusMenuFor(null);
+                                                                }}
+                                                            >
+                                                                Mark Complete
+                                                            </button>
+                                                        )}
+
+                                                        {(normalizeStatus(appt.status) === 'PENDING' || normalizeStatus(appt.status) === 'SCHEDULED' || normalizeStatus(appt.status) === 'COMPLETED') && (
+                                                            <button
+                                                                className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-surfaceHighlight disabled:opacity-50"
+                                                                disabled={statusUpdatingId === appt.appointment_id}
+                                                                onClick={() => void updateStatus(appt.appointment_id, 'CANCELLED')}
+                                                            >
+                                                                Set Cancelled
+                                                            </button>
+                                                        )}
+
+                                                        {(normalizeStatus(appt.status) === 'COMPLETED' || normalizeStatus(appt.status) === 'CANCELLED') && (
+                                                            <button
+                                                                className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-surfaceHighlight disabled:opacity-50"
+                                                                disabled={statusUpdatingId === appt.appointment_id}
+                                                                onClick={() => void updateStatus(appt.appointment_id, 'PENDING')}
+                                                            >
+                                                                Set Pending
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -317,6 +458,49 @@ export const AppointmentsPage = () => {
                     )}
                 </div>
             </Card>
+
+            <Modal isOpen={showCompleteModal} onClose={() => setShowCompleteModal(false)} title="Complete Appointment - Mark Attendance">
+                <div className="space-y-4">
+                    {completionMeta && (
+                        <p className="text-sm text-textMuted">
+                            {formatDate(completionMeta.date)} - {formatTime(completionMeta.start)} to {formatTime(completionMeta.end)}
+                        </p>
+                    )}
+
+                    {attendanceRows.length === 0 ? (
+                        <p className="text-sm text-textMuted">No partners assigned to this appointment.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {attendanceRows.map((row, idx) => (
+                                <div key={row.partner_id} className="px-3 py-2 bg-surfaceHighlight/20 rounded-lg">
+                                    <div className="text-sm text-text mb-2">{row.partner_name}</div>
+                                    <select
+                                        className="w-full bg-surface border border-surfaceHighlight rounded-lg px-3 py-2 text-sm text-text"
+                                        value={row.choice}
+                                        onChange={(e) => {
+                                            const nextChoice = e.target.value as AttendanceChoice;
+                                            setAttendanceRows((prev) => {
+                                                const next = [...prev];
+                                                next[idx] = { ...next[idx], choice: nextChoice };
+                                                return next;
+                                            });
+                                        }}
+                                    >
+                                        <option value="PRESENT">Present</option>
+                                        <option value="ABSENT_INFORMED">Absent (Informed)</option>
+                                        <option value="ABSENT_NOT_INFORMED">Absent (Not Informed)</option>
+                                    </select>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="pt-4 flex justify-end gap-3">
+                        <Button variant="secondary" onClick={() => setShowCompleteModal(false)}>Cancel</Button>
+                        <Button onClick={() => void completeFromTable()}>Mark Complete</Button>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Create Modal */}
             <CreateAppointmentModal

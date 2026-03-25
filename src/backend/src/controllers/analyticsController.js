@@ -160,8 +160,8 @@ class AnalyticsController {
               investee,
               duration_minutes: duration,
               present: p.is_present === true ? 1 : 0,
-              absent_but_informed: 0, // Not tracked in current schema, placeholder
-              absent_after_accepting: 0, // Not tracked in current schema, placeholder
+              absent_but_informed: p.is_present === false && p.absent_informed === true ? 1 : 0,
+              absent_after_accepting: p.is_present === false && p.absent_informed === false ? 1 : 0,
               modified_at: modified,
             });
           }

@@ -49,7 +49,7 @@ export const useDeleteAppointment = () => {
 export const useCompleteAppointment = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { appointmentId: string; attendance: Array<{ partner_id: string; is_present: boolean }> }) =>
+    mutationFn: async (data: { appointmentId: string; attendance: Array<{ partner_id: string; is_present: boolean; absent_informed?: boolean | null }> }) =>
       appointmentService.complete(data.appointmentId, data.attendance),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });

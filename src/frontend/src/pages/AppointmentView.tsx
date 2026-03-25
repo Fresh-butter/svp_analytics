@@ -7,6 +7,9 @@ import { lookupService } from '../services/lookupService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDate, formatTime } from '../utils/formatters';
 import { AppointmentStatusBadge } from '../components/StatusBadge';
+import { parseLocalDate } from '../utils/appointmentHelpers';
+
+type AttendanceChoice = 'PRESENT' | 'ABSENT_INFORMED' | 'ABSENT_NOT_INFORMED';
 
 export const AppointmentViewPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -14,7 +17,7 @@ export const AppointmentViewPage = () => {
   const queryClient = useQueryClient();
 
   const [showCompleteModal, setShowCompleteModal] = useState(false);
-  const [attendance, setAttendance] = useState<Array<{ partner_id: string; partner_name: string; is_present: boolean }>>([]);
+  const [attendance, setAttendance] = useState<Array<{ partner_id: string; partner_name: string; choice: AttendanceChoice }>>([]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['appointment-detail', id],
@@ -35,7 +38,11 @@ export const AppointmentViewPage = () => {
       if (!id) return;
       await appointmentService.complete(
         id,
-        attendance.map((a) => ({ partner_id: a.partner_id, is_present: a.is_present }))
+        attendance.map((a) => ({
+          partner_id: a.partner_id,
+          is_present: a.choice === 'PRESENT',
+          absent_informed: a.choice === 'PRESENT' ? null : a.choice === 'ABSENT_INFORMED',
+        }))
       );
     },
     onSuccess: async () => {
@@ -53,7 +60,12 @@ export const AppointmentViewPage = () => {
       (data.appointmentDetail.partners || []).map((p) => ({
         partner_id: String(p.partner_id),
         partner_name: p.partner_name,
-        is_present: p.is_present ?? true,
+        choice:
+          p.is_present === true
+            ? 'PRESENT'
+            : p.is_present === false
+              ? (p.absent_informed === true ? 'ABSENT_INFORMED' : 'ABSENT_NOT_INFORMED')
+              : 'PRESENT',
       }))
     );
     setShowCompleteModal(true);
@@ -78,6 +90,25 @@ export const AppointmentViewPage = () => {
   const investeeDetails = detail.investee;
   const recurringDetails = detail.recurring_appointment;
   const heroName = investeeDetails?.investee_name || titleName || 'AP';
+  const normalizedStatus = (appt.status || '').toUpperCase();
+  const eventDate = parseLocalDate(appt.occurrence_date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const canComplete = (normalizedStatus === 'PENDING' || normalizedStatus === 'SCHEDULED') && eventDate.getTime() <= today.getTime();
+
+  const statusMutation = useMutation({
+    mutationFn: async (status: 'PENDING' | 'CANCELLED') => {
+      if (!id) return;
+      if (status === 'PENDING') return appointmentService.setPending(id);
+      return appointmentService.setCancelled(id);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['appointment-detail', id] }),
+        queryClient.invalidateQueries({ queryKey: ['appointments'] }),
+      ]);
+    },
+  });
 
   const fmtDateTime = (value?: string) => {
     if (!value) return '-';
@@ -107,11 +138,23 @@ export const AppointmentViewPage = () => {
               <div className="mt-2"><AppointmentStatusBadge status={appt.status} /></div>
             </div>
           </div>
-          {(appt.status === 'PENDING' || appt.status === 'Scheduled') && (
-            <Button onClick={openComplete}>
-              <CheckCircle size={16} /> Complete
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {canComplete && (
+              <Button onClick={openComplete}>
+                <CheckCircle size={16} /> Complete
+              </Button>
+            )}
+            {(normalizedStatus === 'COMPLETED' || normalizedStatus === 'CANCELLED') && (
+              <Button variant="secondary" onClick={() => statusMutation.mutate('PENDING')}>
+                Set Pending
+              </Button>
+            )}
+            {(normalizedStatus === 'PENDING' || normalizedStatus === 'SCHEDULED' || normalizedStatus === 'COMPLETED') && (
+              <Button variant="secondary" onClick={() => statusMutation.mutate('CANCELLED')}>
+                Set Cancelled
+              </Button>
+            )}
+          </div>
         </div>
       </Card>
 
@@ -184,7 +227,7 @@ export const AppointmentViewPage = () => {
                   <span className="text-xs text-textMuted">Not marked</span>
                 ) : (
                   <span className={p.is_present ? 'text-green-500 text-xs' : 'text-red-400 text-xs'}>
-                    {p.is_present ? 'Present' : 'Absent'}
+                    {p.is_present ? 'Present' : p.absent_informed === true ? 'Absent (Informed)' : p.absent_informed === false ? 'Absent (Not Informed)' : 'Absent'}
                   </span>
                 )}
               </div>
@@ -203,19 +246,23 @@ export const AppointmentViewPage = () => {
           ) : (
             <div className="space-y-2">
               {attendance.map((a, i) => (
-                <label key={a.partner_id} className="flex items-center justify-between px-3 py-2 bg-surfaceHighlight/20 rounded-lg cursor-pointer">
-                  <span className="text-sm text-text">{a.partner_name}</span>
-                  <input
-                    type="checkbox"
-                    checked={a.is_present}
+                <div key={a.partner_id} className="px-3 py-2 bg-surfaceHighlight/20 rounded-lg">
+                  <div className="text-sm text-text mb-2">{a.partner_name}</div>
+                  <select
+                    className="w-full bg-surface border border-surfaceHighlight rounded-lg px-3 py-2 text-sm text-text"
+                    value={a.choice}
                     onChange={(e) => {
+                      const choice = e.target.value as AttendanceChoice;
                       const next = [...attendance];
-                      next[i] = { ...next[i], is_present: e.target.checked };
+                      next[i] = { ...next[i], choice };
                       setAttendance(next);
                     }}
-                    className="rounded"
-                  />
-                </label>
+                  >
+                    <option value="PRESENT">Present</option>
+                    <option value="ABSENT_INFORMED">Absent (Informed)</option>
+                    <option value="ABSENT_NOT_INFORMED">Absent (Not Informed)</option>
+                  </select>
+                </div>
               ))}
             </div>
           )}
