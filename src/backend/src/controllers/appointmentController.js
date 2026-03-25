@@ -98,6 +98,10 @@ class AppointmentController {
       }
       res.json({ success: true, data: appointment });
     } catch (err) {
+      if (err.code === 'VALIDATION') {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: err.message } });
+        return;
+      }
       console.error('Complete appointment error:', err);
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to complete appointment' } });
     }

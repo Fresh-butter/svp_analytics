@@ -269,6 +269,14 @@ class AppointmentRepository {
     });
     if (!existing || existing.status !== 'PENDING') return null;
 
+    const today = utcToday();
+    const appointmentDate = parseLocalDate(existing.occurrence_date);
+    if (appointmentDate > today) {
+      const err = new Error('Cannot mark a future appointment as completed');
+      err.code = 'VALIDATION';
+      throw err;
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.appointments.update({
         where: { appointment_id: aid },
