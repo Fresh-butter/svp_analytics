@@ -129,23 +129,22 @@ export const PartnersPage = () => {
 
 
     const handleExportExcel = async () => {
+        // Export without internal IDs. Show primary partner name instead of ID.
         await exportJsonToXlsx(filteredPartners.map(p => ({
-            ID: p.partner_id,
             Name: p.partner_name,
             Email: p.email,
             'Start Date': p.start_date,
             'End Date': p.end_date || '-',
             'LinkedIn': p.linkedin_url || '-',
-            'Primary Partner ID': p.primary_partner_id || '-'
+            'Primary Partner': partners.find(x => x.partner_id === p.primary_partner_id)?.partner_name || '-'
         })), 'Partners', 'partners_export.xlsx');
     };
 
     const handleExportPDF = async () => {
         await exportTableToPdf({
             title: 'Partners List',
-            columns: ['ID', 'Name', 'Email', 'Start Date', 'End Date'],
+            columns: ['Name', 'Email', 'Start Date', 'End Date'],
             rows: filteredPartners.map((p) => [
-                p.partner_id,
                 p.partner_name,
                 p.email,
                 p.start_date,

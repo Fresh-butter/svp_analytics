@@ -71,8 +71,8 @@ export const InvesteesPage = () => {
     };
 
     const handleExportExcel = async () => {
+        // Export without internal IDs
         await exportJsonToXlsx(filteredInvestees.map(inv => ({
-            ID: inv.investee_id,
             Name: inv.investee_name,
             Email: inv.email,
             'Start Date': inv.start_date,
@@ -84,9 +84,8 @@ export const InvesteesPage = () => {
     const handleExportPDF = async () => {
         await exportTableToPdf({
             title: 'Investees List',
-            columns: ['ID', 'Name', 'Email', 'Start Date', 'End Date'],
+            columns: ['Name', 'Email', 'Start Date', 'End Date'],
             rows: filteredInvestees.map((inv) => [
-                inv.investee_id,
                 inv.investee_name,
                 inv.email,
                 inv.start_date,
