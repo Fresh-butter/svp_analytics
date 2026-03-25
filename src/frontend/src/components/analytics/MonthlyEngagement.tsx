@@ -55,6 +55,10 @@ export const MonthlyEngagement = ({
             render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.meetings_count), 1)} color="bg-blue-500" />
         },
         {
+            header: 'Meetings Accepted', accessor: 'meetings_accepted', sortable: true,
+            render: (v) => <BarCell value={Number(v) || 0} max={Math.max(...filteredData.map(d => d.meetings_accepted || 0), 1)} color="bg-indigo-500" />
+        },
+        {
             header: 'Distinct Partners', accessor: 'distinct_partners_engaged', sortable: true,
             render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.distinct_partners_engaged), 1)} color="bg-emerald-500" />
         },

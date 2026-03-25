@@ -52,6 +52,10 @@ export const InvesteeAnalytics = ({
             render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.meetings_count), 1)} color="bg-blue-500" />
         },
         {
+            header: 'Meetings Accepted', accessor: 'meetings_accepted', sortable: true,
+            render: (v) => <BarCell value={Number(v) || 0} max={Math.max(...filteredData.map(d => d.meetings_accepted || 0), 1)} color="bg-indigo-500" />
+        },
+        {
             header: 'Total Hours', accessor: 'hours_spent', sortable: true,
             render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.hours_spent), 1)} color="bg-emerald-500" />
         },
