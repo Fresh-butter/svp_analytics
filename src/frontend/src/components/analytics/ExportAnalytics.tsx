@@ -82,15 +82,6 @@ export const ExportAnalytics = () => {
 
   return (
     <div className="flex items-center gap-3">
-      <div className="flex items-center gap-2">
-        <label className="text-xs text-textMuted">From</label>
-        <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="bg-surface border border-surfaceHighlight rounded px-2 py-1 text-sm" />
-      </div>
-      <div className="flex items-center gap-2">
-        <label className="text-xs text-textMuted">To</label>
-        <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="bg-surface border border-surfaceHighlight rounded px-2 py-1 text-sm" />
-      </div>
-
       <div className="relative">
         <button
           onClick={() => setShowExportOptions(prev => !prev)}
