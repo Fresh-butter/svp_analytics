@@ -28,6 +28,7 @@ async function seedPartnerUsers() {
   try {
     console.log('Seeding partner login accounts...');
     const supportsUserPartnerLink = prismaModelHasField('users', 'partner_id');
+    const supportsUserIsActive = prismaModelHasField('users', 'is_active');
 
     const partners = await prisma.partners.findMany({
       where: { email: { not: null } },
@@ -52,7 +53,7 @@ async function seedPartnerUsers() {
         },
         update: {
           user_type: 'PARTNER',
-          is_active: false,
+          ...(supportsUserIsActive ? { is_active: false } : {}),
           name: partner.partner_name,
           password_hash,
           ...(supportsUserPartnerLink ? { partner_id: partner.partner_id } : {}),
@@ -60,7 +61,7 @@ async function seedPartnerUsers() {
         create: {
           chapter_id: partner.chapter_id,
           user_type: 'PARTNER',
-          is_active: false,
+          ...(supportsUserIsActive ? { is_active: false } : {}),
           name: partner.partner_name,
           email: partner.email,
           password_hash,

@@ -396,6 +396,7 @@ async function seedDummyData() {
   try {
     console.log('Seeding large dummy data set (excluding chapters/admins)...');
     const supportsUserPartnerLink = prismaModelHasField('users', 'partner_id');
+    const supportsUserIsActive = prismaModelHasField('users', 'is_active');
 
     const chapters = await prisma.chapters.findMany({
       where: { chapter_name: { in: CHAPTERS_REQUIRED } },
@@ -500,7 +501,7 @@ async function seedDummyData() {
           },
           update: {
             user_type: 'PARTNER',
-            is_active: false,
+            ...(supportsUserIsActive ? { is_active: false } : {}),
             name: partner.name,
             password_hash,
             ...(supportsUserPartnerLink ? { partner_id: partnerRecord.partner_id } : {}),
@@ -508,7 +509,7 @@ async function seedDummyData() {
           create: {
             chapter_id: chapter.chapter_id,
             user_type: 'PARTNER',
-            is_active: false,
+            ...(supportsUserIsActive ? { is_active: false } : {}),
             name: partner.name,
             email: partner.email,
             password_hash,
