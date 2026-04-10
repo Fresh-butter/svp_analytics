@@ -12,6 +12,8 @@ export interface AuthUser {
   user_type: 'ADMIN' | 'PARTNER';
   name: string;
   email: string;
+  partner_id?: string | null;
+  partner_name?: string | null;
 }
 
 interface LoginResponse {
@@ -49,6 +51,19 @@ export const authService = {
 
   async forgotPassword(email: string): Promise<string> {
     const res = await api.post<{ success: boolean; data: { message: string } }>('/auth/forgot-password', { email });
+    return res.data.message;
+  },
+
+  async requestPartnerActivation(payload: { email: string; chapter_id: string }): Promise<{ message: string; temporary_password?: string }> {
+    const res = await api.post<{ success: boolean; data: { message: string; temporary_password?: string } }>(
+      '/auth/partner-activation/request',
+      payload
+    );
+    return res.data;
+  },
+
+  async completePartnerActivation(payload: { token: string; password: string }): Promise<string> {
+    const res = await api.post<{ success: boolean; data: { message: string } }>('/auth/partner-activation/complete', payload);
     return res.data.message;
   },
 };

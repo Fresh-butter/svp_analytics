@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { RecurringAppointmentController } = require('../controllers');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 
@@ -38,7 +38,7 @@ router.get('/:id', authenticate, (req, res) => {
   return RecurringAppointmentController.get(req, res);
 });
 
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Recurring Appointments']
   // #swagger.summary = 'Create a recurring appointment template'
   // #swagger.description = 'Creates a new recurring appointment template with an rrule schedule. end_date cannot be more than 1 year from today.'
@@ -77,7 +77,7 @@ router.post('/', authenticate, (req, res) => {
   return RecurringAppointmentController.create(req, res);
 });
 
-router.post('/:id/materialize', authenticate, (req, res) => {
+router.post('/:id/materialize', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Recurring Appointments']
   // #swagger.summary = 'Manually materialize an occurrence'
   // #swagger.description = 'Creates a PENDING appointment for a specific occurrence_date from a recurring template. The date must fall within the template range and be a valid rrule occurrence.'
@@ -111,7 +111,7 @@ router.post('/:id/materialize', authenticate, (req, res) => {
   return RecurringAppointmentController.materialize(req, res);
 });
 
-router.put('/:id', authenticate, (req, res) => {
+router.put('/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Recurring Appointments']
   // #swagger.summary = 'Update a recurring appointment template'
   // #swagger.description = 'Updates a template. Only affects unmaterialized occurrences. Validates rrule and end_date if provided.'
@@ -155,7 +155,7 @@ router.put('/:id', authenticate, (req, res) => {
   return RecurringAppointmentController.update(req, res);
 });
 
-router.delete('/:id', authenticate, (req, res) => {
+router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Recurring Appointments']
   // #swagger.summary = 'Delete a recurring appointment template'
   // #swagger.description = 'Deletes the template. Sets rec_appointment_id = NULL in materialized appointments.'

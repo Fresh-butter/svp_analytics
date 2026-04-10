@@ -6,10 +6,13 @@ import { partnerService } from '../services/partnerService';
 import { groupService } from '../services/groupService';
 import { Partner, Group } from '../types';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../context/AuthContext';
 import { formatDate, formatDayOfMonth, formatShortMonth, formatTime } from '../utils/formatters';
 
 export const HomePage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isPartner = user?.user_type === 'PARTNER';
 
   const today = useMemo(() => {
     const d = new Date();
@@ -27,24 +30,32 @@ export const HomePage = () => {
   const overlapsNextMonth = today.getMonth() !== nextWeek.getMonth() || today.getFullYear() !== nextWeek.getFullYear();
 
   const { data: currentMonthApps = [], isLoading: isAppsLoading } = useQuery({
-    queryKey: ['home-appointments', today.getMonth() + 1, today.getFullYear()],
+    queryKey: ['home-appointments', user?.user_id || 'anonymous', today.getMonth() + 1, today.getFullYear()],
     queryFn: () => appointmentService.list({ month: today.getMonth() + 1, year: today.getFullYear() }).then((res) => res.data),
   });
 
   const { data: nextMonthApps = [], isLoading: isNextAppsLoading } = useQuery({
-    queryKey: ['home-appointments', nextWeek.getMonth() + 1, nextWeek.getFullYear()],
+    queryKey: ['home-appointments', user?.user_id || 'anonymous', nextWeek.getMonth() + 1, nextWeek.getFullYear()],
     queryFn: () => appointmentService.list({ month: nextWeek.getMonth() + 1, year: nextWeek.getFullYear() }).then((res) => res.data),
     enabled: overlapsNextMonth,
   });
 
   const { data: allPartners = [], isLoading: isPartnersLoading } = useQuery({
-    queryKey: ['partners'],
+    queryKey: ['partners', user?.user_id || 'anonymous'],
     queryFn: () => partnerService.getAll(),
+    enabled: !isPartner,
   });
 
   const { data: allGroups = [], isLoading: isGroupsLoading } = useQuery({
-    queryKey: ['groups'],
+    queryKey: ['groups', user?.user_id || 'anonymous'],
     queryFn: () => groupService.getAll(),
+    enabled: !isPartner,
+  });
+
+  const { data: assignedAppointments = [], isLoading: isAssignedLoading } = useQuery({
+    queryKey: ['partner-assigned-appointments', user?.user_id || 'anonymous'],
+    queryFn: () => appointmentService.getAssigned(),
+    enabled: isPartner,
   });
 
   const appointments = useMemo(() => {
@@ -81,11 +92,27 @@ export const HomePage = () => {
 
   const loading = isAppsLoading || isNextAppsLoading || isPartnersLoading || isGroupsLoading;
 
+  const partnerScheduled = useMemo(() => {
+    return assignedAppointments
+      .filter((appointment) => String(appointment.status || '').toUpperCase() === 'PENDING')
+      .sort((a, b) => new Date(a.occurrence_date).getTime() - new Date(b.occurrence_date).getTime());
+  }, [assignedAppointments]);
+
+  const partnerCompleted = useMemo(() => {
+    return assignedAppointments
+      .filter((appointment) => String(appointment.status || '').toUpperCase() === 'COMPLETED')
+      .sort((a, b) => new Date(b.occurrence_date).getTime() - new Date(a.occurrence_date).getTime());
+  }, [assignedAppointments]);
+
   return (
     <div className="h-full space-y-6 flex flex-col">
       <div className="shrink-0">
         <h1 className="text-3xl font-bold text-text">Dashboard</h1>
-        <p className="text-textMuted mt-2">Welcome back, admin. Here's what's happening in your chapter.</p>
+        <p className="text-textMuted mt-2">
+          {isPartner
+            ? 'Welcome back. This view is limited to your assigned meetings, analytics, and calendar.'
+            : "Welcome back, admin. Here's what's happening in your chapter."}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
@@ -151,61 +178,125 @@ export const HomePage = () => {
         </div>
 
         <div className="flex flex-col space-y-6 min-h-0">
-          <Card className="flex flex-col flex-1 min-h-0 p-6 bg-surface">
-            <div className="mb-4 shrink-0">
-              <h2 className="text-xl font-semibold text-text">Partners by Expiry</h2>
-              <div className="text-textMuted text-sm mt-1">Partnerships ending soon</div>
-            </div>
-            <div className="overflow-y-auto flex-1 pr-2 space-y-3">
-              {loading ? (
-                <div className="flex items-center justify-center h-full text-textMuted italic">Loading...</div>
-              ) : partners.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-textMuted italic min-h-[100px]">
-                  No partners expiring soon
-                </div>
-              ) : (
-                partners.map(partner => (
-                  <div key={partner.partner_id} className="p-3 bg-surfaceHighlight rounded-lg text-sm flex justify-between items-center border border-surfaceHighlight">
-                    <div>
-                      <p className="text-text font-medium">{partner.partner_name}</p>
-                      <p className="text-textMuted text-xs mt-0.5">Expires: {formatDate(partner.end_date!)}</p>
-                    </div>
-                    <button onClick={() => navigate(`/partners/${partner.partner_id}`)} className="text-primary hover:text-primaryHover">
-                      View
-                    </button>
+          {isPartner ? (
+            <Card className="flex flex-col flex-1 min-h-0 p-6 bg-surface">
+              <div className="mb-4 shrink-0">
+                <h2 className="text-xl font-semibold text-text">Assigned Meetings</h2>
+                <div className="text-textMuted text-sm mt-1">View your assigned meetings by status.</div>
+              </div>
+              <div className="overflow-y-auto pr-2 space-y-5 text-sm">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-text font-semibold">Scheduled</h3>
+                    <span className="text-xs text-textMuted">{partnerScheduled.length}</span>
                   </div>
-                ))
-              )}
-            </div>
-          </Card>
+                  <div className="space-y-2">
+                    {isAssignedLoading ? (
+                      <p className="text-textMuted italic">Loading...</p>
+                    ) : partnerScheduled.length === 0 ? (
+                      <p className="text-textMuted italic">No scheduled meetings assigned.</p>
+                    ) : (
+                      partnerScheduled.slice(0, 6).map((appointment) => (
+                        <button
+                          key={appointment.appointment_id}
+                          type="button"
+                          onClick={() => navigate(`/appointments/${appointment.appointment_id}`)}
+                          className="w-full text-left px-3 py-2 rounded-lg bg-surfaceHighlight border border-surfaceHighlight hover:border-primary/40 transition-colors"
+                        >
+                          <p className="text-text font-medium truncate">{appointment.appointment_name || appointment.investee_name || 'Meeting'}</p>
+                          <p className="text-xs text-textMuted mt-0.5">{formatDate(appointment.occurrence_date)} • {formatTime(appointment.start_at)}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
 
-          <Card className="flex flex-col flex-1 min-h-0 p-6 bg-surface">
-            <div className="mb-4 shrink-0">
-              <h2 className="text-xl font-semibold text-text">Groups by Expiry</h2>
-              <div className="text-textMuted text-sm mt-1">Groups ending soon</div>
-            </div>
-            <div className="overflow-y-auto flex-1 pr-2 space-y-3">
-              {loading ? (
-                <div className="flex items-center justify-center h-full text-textMuted italic">Loading...</div>
-              ) : groups.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-textMuted italic min-h-[100px]">
-                  No groups expiring soon
-                </div>
-              ) : (
-                groups.map(group => (
-                  <div key={group.group_id} className="p-3 bg-surfaceHighlight rounded-lg text-sm flex justify-between items-center border border-surfaceHighlight">
-                    <div>
-                      <p className="text-text font-medium">{group.group_name}</p>
-                      <p className="text-textMuted text-xs mt-0.5">Expires: {formatDate(group.end_date!)}</p>
-                    </div>
-                    <button onClick={() => navigate(`/groups/${group.group_id}`)} className="text-primary hover:text-primaryHover">
-                      View
-                    </button>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-text font-semibold">Completed</h3>
+                    <span className="text-xs text-textMuted">{partnerCompleted.length}</span>
                   </div>
-                ))
-              )}
-            </div>
-          </Card>
+                  <div className="space-y-2">
+                    {isAssignedLoading ? (
+                      <p className="text-textMuted italic">Loading...</p>
+                    ) : partnerCompleted.length === 0 ? (
+                      <p className="text-textMuted italic">No completed meetings assigned.</p>
+                    ) : (
+                      partnerCompleted.slice(0, 6).map((appointment) => (
+                        <button
+                          key={appointment.appointment_id}
+                          type="button"
+                          onClick={() => navigate(`/appointments/${appointment.appointment_id}`)}
+                          className="w-full text-left px-3 py-2 rounded-lg bg-surfaceHighlight border border-surfaceHighlight hover:border-primary/40 transition-colors"
+                        >
+                          <p className="text-text font-medium truncate">{appointment.appointment_name || appointment.investee_name || 'Meeting'}</p>
+                          <p className="text-xs text-textMuted mt-0.5">{formatDate(appointment.occurrence_date)} • {formatTime(appointment.start_at)}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ) : (
+            <>
+              <Card className="flex flex-col flex-1 min-h-0 p-6 bg-surface">
+                <div className="mb-4 shrink-0">
+                  <h2 className="text-xl font-semibold text-text">Partners by Expiry</h2>
+                  <div className="text-textMuted text-sm mt-1">Partnerships ending soon</div>
+                </div>
+                <div className="overflow-y-auto flex-1 pr-2 space-y-3">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full text-textMuted italic">Loading...</div>
+                  ) : partners.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-textMuted italic min-h-[100px]">
+                      No partners expiring soon
+                    </div>
+                  ) : (
+                    partners.map(partner => (
+                      <div key={partner.partner_id} className="p-3 bg-surfaceHighlight rounded-lg text-sm flex justify-between items-center border border-surfaceHighlight">
+                        <div>
+                          <p className="text-text font-medium">{partner.partner_name}</p>
+                          <p className="text-textMuted text-xs mt-0.5">Expires: {formatDate(partner.end_date!)}</p>
+                        </div>
+                        <button onClick={() => navigate(`/partners/${partner.partner_id}`)} className="text-primary hover:text-primaryHover">
+                          View
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Card>
+
+              <Card className="flex flex-col flex-1 min-h-0 p-6 bg-surface">
+                <div className="mb-4 shrink-0">
+                  <h2 className="text-xl font-semibold text-text">Groups by Expiry</h2>
+                  <div className="text-textMuted text-sm mt-1">Groups ending soon</div>
+                </div>
+                <div className="overflow-y-auto flex-1 pr-2 space-y-3">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full text-textMuted italic">Loading...</div>
+                  ) : groups.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-textMuted italic min-h-[100px]">
+                      No groups expiring soon
+                    </div>
+                  ) : (
+                    groups.map(group => (
+                      <div key={group.group_id} className="p-3 bg-surfaceHighlight rounded-lg text-sm flex justify-between items-center border border-surfaceHighlight">
+                        <div>
+                          <p className="text-text font-medium">{group.group_name}</p>
+                          <p className="text-textMuted text-xs mt-0.5">Expires: {formatDate(group.end_date!)}</p>
+                        </div>
+                        <button onClick={() => navigate(`/groups/${group.group_id}`)} className="text-primary hover:text-primaryHover">
+                          View
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Card>
+            </>
+          )}
         </div>
       </div>
     </div>

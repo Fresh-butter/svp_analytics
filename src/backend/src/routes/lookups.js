@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { LookupController } = require('../controllers');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 
@@ -16,7 +16,7 @@ router.get('/group-types', authenticate, (req, res) => {
   return LookupController.listGroupTypes(req, res);
 });
 
-router.post('/group-types', authenticate, (req, res) => {
+router.post('/group-types', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Lookups']
   // #swagger.summary = 'Create a group type'
   // #swagger.description = 'Creates a new group type for the authenticated user chapter.'
@@ -41,7 +41,7 @@ router.post('/group-types', authenticate, (req, res) => {
   return LookupController.createGroupType(req, res);
 });
 
-router.delete('/group-types/:id', authenticate, (req, res) => {
+router.delete('/group-types/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Lookups']
   // #swagger.summary = 'Delete a group type'
   // #swagger.description = 'Deletes a group type by ID. Blocked if referenced by groups.'
@@ -72,7 +72,7 @@ router.get('/appointment-types', authenticate, (req, res) => {
   return LookupController.listAppointmentTypes(req, res);
 });
 
-router.post('/appointment-types', authenticate, (req, res) => {
+router.post('/appointment-types', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Lookups']
   // #swagger.summary = 'Create an appointment type'
   // #swagger.description = 'Creates a new appointment type for the authenticated user chapter.'
@@ -97,7 +97,7 @@ router.post('/appointment-types', authenticate, (req, res) => {
   return LookupController.createAppointmentType(req, res);
 });
 
-router.delete('/appointment-types/:id', authenticate, (req, res) => {
+router.delete('/appointment-types/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Lookups']
   // #swagger.summary = 'Delete an appointment type'
   // #swagger.description = 'Deletes an appointment type by ID. Blocked if referenced.'

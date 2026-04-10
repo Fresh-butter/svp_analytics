@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
@@ -17,15 +17,15 @@ import {
   Sun,
   Moon,
   LogOut,
-  Trash2
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { appointmentService } from '../services/appointmentService';
+import type { AppointmentNotification } from '../services/appointmentService';
 import { formatDate } from '../utils/formatters';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -76,6 +76,8 @@ const SidebarItem = ({
 
 const Sidebar = ({ isOpen }: { isOpen: boolean }) => {
   const location = useLocation();
+  const { user } = useAuth();
+  const isPartner = user?.user_type === 'PARTNER';
 
   return (
     <div className={cn(
@@ -113,46 +115,51 @@ const Sidebar = ({ isOpen }: { isOpen: boolean }) => {
           to="/" 
           active={location.pathname === '/'} 
         />
-        
-        <div className="pt-4 pb-2 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          Management
-        </div>
-        
-        <SidebarItem 
-          icon={Users} 
-          label="Partners" 
-          to="/partners" 
-          active={location.pathname.startsWith('/partners')} 
-        />
-        <SidebarItem 
-          icon={Target} 
-          label="Investees" 
-          to="/investees" 
-          active={location.pathname.startsWith('/investees')} 
-        />
-        <SidebarItem 
-          icon={Layers} 
-          label="Groups" 
-          to="/groups" 
-          active={location.pathname.startsWith('/groups')} 
-        />
 
-        <div className="pt-4 pb-2 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          Planning
-        </div>
+        {!isPartner && (
+          <>
+            <div className="pt-4 pb-2 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Management
+            </div>
 
-        <SidebarItem 
-          icon={CalendarCheck} 
-          label="Appointments" 
-          to="/appointments" 
-          active={location.pathname.startsWith('/appointments')} 
-        />
-        <SidebarItem 
-          icon={Repeat} 
-          label="Recurring" 
-          to="/recurring-appointments" 
-          active={location.pathname.startsWith('/recurring-appointments')} 
-        />
+            <SidebarItem 
+              icon={Users} 
+              label="Partners" 
+              to="/partners" 
+              active={location.pathname.startsWith('/partners')} 
+            />
+            <SidebarItem 
+              icon={Target} 
+              label="Investees" 
+              to="/investees" 
+              active={location.pathname.startsWith('/investees')} 
+            />
+            <SidebarItem 
+              icon={Layers} 
+              label="Groups" 
+              to="/groups" 
+              active={location.pathname.startsWith('/groups')} 
+            />
+
+            <div className="pt-4 pb-2 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Planning
+            </div>
+
+            <SidebarItem 
+              icon={CalendarCheck} 
+              label="Appointments" 
+              to="/appointments" 
+              active={location.pathname.startsWith('/appointments')} 
+            />
+            <SidebarItem 
+              icon={Repeat} 
+              label="Recurring" 
+              to="/recurring-appointments" 
+              active={location.pathname.startsWith('/recurring-appointments')} 
+            />
+          </>
+        )}
+
         <SidebarItem 
           icon={Calendar} 
           label="Calendar" 
@@ -181,45 +188,59 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [showProfile, setShowProfile] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const profileRef = React.useRef<HTMLDivElement>(null);
   const notificationsRef = React.useRef<HTMLDivElement>(null);
 
-  const { data: allAppointments = [] } = useQuery({
-    queryKey: ['header-notification-appointments'],
-    queryFn: () => appointmentService.getAll(),
+  const isPartner = user?.user_type === 'PARTNER';
+  const [dismissedNotifications, setDismissedNotifications] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    const key = `notification-dismissed:${user?.user_id || 'anonymous'}`;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        setDismissedNotifications(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setDismissedNotifications([]);
+      }
+    } else {
+      setDismissedNotifications([]);
+    }
+  }, [user?.user_id]);
+
+  const notificationKey = (appointment: AppointmentNotification) => {
+    const message = appointment.notification_message || '';
+    return `${appointment.appointment_id}:${appointment.focus_partner_id || ''}:${message}`;
+  };
+
+  const dismissNotification = (appointment: AppointmentNotification) => {
+    const key = notificationKey(appointment);
+    const next = Array.from(new Set([...dismissedNotifications, key]));
+    setDismissedNotifications(next);
+    localStorage.setItem(`notification-dismissed:${user?.user_id || 'anonymous'}`, JSON.stringify(next));
+  };
+
+  const { data: notificationAppointments = [] } = useQuery<AppointmentNotification[]>({
+    queryKey: ['header-notification-appointments', user?.user_id || 'anonymous'],
+    queryFn: () => appointmentService.getNotifications(),
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
     enabled: Boolean(user),
   });
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const visibleNotifications = notificationAppointments.filter(
+    (appointment) => !dismissedNotifications.includes(notificationKey(appointment))
+  );
 
-  const pastAppointments = useMemo(() => {
-    return allAppointments
-      .filter((appointment) => appointment.occurrence_date < todayKey)
-      .sort((a, b) => b.occurrence_date.localeCompare(a.occurrence_date));
-  }, [allAppointments, todayKey]);
-
-  const handleOpenAppointment = (appointmentId: string) => {
+  const handleOpenAppointment = (appointment: AppointmentNotification) => {
     setShowNotifications(false);
-    navigate(`/appointments/${appointmentId}`);
-  };
-
-  const handleDeleteAppointment = async (appointmentId: string) => {
-    const shouldDelete = window.confirm('Delete this appointment?');
-    if (!shouldDelete) return;
-    try {
-      await appointmentService.remove(appointmentId);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['appointments'] }),
-        queryClient.invalidateQueries({ queryKey: ['header-notification-appointments'] }),
-      ]);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to delete appointment');
-    }
+    const params = new URLSearchParams();
+    if (appointment.focus_partner_id) params.set('focus_partner', appointment.focus_partner_id);
+    const query = params.toString();
+    navigate(`/appointments/${appointment.appointment_id}${query ? `?${query}` : ''}`);
   };
 
   // Close dropdowns on outside click
@@ -283,12 +304,12 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
           <button
             onClick={() => setShowNotifications((value) => !value)}
             className="relative text-textMuted hover:text-text transition-colors"
-            title="Notifications"
+            title={isPartner ? 'Today attendance updates' : 'Partner updates'}
           >
             <Bell size={20} />
-            {pastAppointments.length > 0 && (
+            {visibleNotifications.length > 0 && (
               <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-danger text-white text-[10px] rounded-full flex items-center justify-center">
-                {pastAppointments.length > 9 ? '9+' : pastAppointments.length}
+                {visibleNotifications.length > 9 ? '9+' : visibleNotifications.length}
               </span>
             )}
           </button>
@@ -296,31 +317,42 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
           {showNotifications && (
             <div className="absolute right-0 top-10 w-80 bg-surface border border-surfaceHighlight rounded-lg shadow-xl z-50 overflow-hidden">
               <div className="px-4 py-3 border-b border-surfaceHighlight">
-                <p className="text-sm font-semibold text-text">Notifications</p>
-                <p className="text-xs text-textMuted">Appointments in the past</p>
+                <p className="text-sm font-semibold text-text">{isPartner ? 'Today meetings' : 'Partner updates'}</p>
+                <p className="text-xs text-textMuted">
+                  {isPartner ? 'Meetings you need to attend today and attendance updates' : 'Latest partner attendance intentions'}
+                </p>
               </div>
               <div className="max-h-72 overflow-y-auto">
-                {pastAppointments.length === 0 ? (
-                  <p className="px-4 py-3 text-sm text-textMuted">No appointments in the past.</p>
+                {visibleNotifications.length === 0 ? (
+                  <p className="px-4 py-3 text-sm text-textMuted">{isPartner ? 'No meeting notifications for today.' : 'No partner updates yet.'}</p>
                 ) : (
-                  pastAppointments.slice(0, 8).map((appointment) => (
+                  visibleNotifications.slice(0, 8).map((appointment) => (
                     <div key={appointment.appointment_id} className="px-4 py-3 border-b border-surfaceHighlight/60 last:border-0">
                       <div className="flex items-start justify-between gap-3">
                         <button
-                          onClick={() => handleOpenAppointment(appointment.appointment_id)}
+                          onClick={() => handleOpenAppointment(appointment)}
                           className="text-left flex-1 min-w-0"
                         >
                           <p className="text-sm font-medium text-text truncate">{appointment.appointment_name || 'Appointment'}</p>
                           <p className="text-xs text-textMuted mt-1">{formatDate(appointment.occurrence_date)}</p>
-                          <p className="text-xs mt-1 text-textMuted">Status: {(appointment.status || 'PENDING').toUpperCase()}</p>
+                          <p className="text-xs mt-1 text-textMuted">{appointment.notification_message || `Status: ${(appointment.status || 'PENDING').toUpperCase()}`}</p>
                         </button>
-                        <button
-                          onClick={() => handleDeleteAppointment(appointment.appointment_id)}
-                          className="p-1 text-textMuted hover:text-danger"
-                          title="Delete appointment"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="flex flex-col items-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => dismissNotification(appointment)}
+                            className="text-[11px] text-primary hover:text-primaryHover"
+                          >
+                            Complete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => dismissNotification(appointment)}
+                            className="text-[11px] text-textMuted hover:text-text"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -332,7 +364,7 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
         
         <div className="relative flex items-center gap-3 pl-6 border-l border-surfaceHighlight" ref={profileRef}>
           <div className="text-right hidden md:block">
-            <p className="text-sm font-medium text-text">{user?.name || 'User'}</p>
+            <p className="text-sm font-medium text-text">{user?.partner_name || user?.name || 'User'}</p>
             <p className="text-xs text-textMuted">{user?.user_type || ''}</p>
           </div>
           <button
@@ -360,10 +392,12 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
                   <span className="text-xs text-textMuted">Role</span>
                   <span className="text-xs font-medium text-text">{user?.user_type || '—'}</span>
                 </div>
-                <div className="flex items-center justify-between px-3 py-2">
-                  <span className="text-xs text-textMuted">Chapter</span>
-                  <span className="text-xs font-medium text-text">SVP Hyderabad</span>
-                </div>
+                {user?.partner_name && (
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-xs text-textMuted">Partner</span>
+                    <span className="text-xs font-medium text-text truncate max-w-[10rem]">{user.partner_name}</span>
+                  </div>
+                )}
               </div>
               <div className="border-t border-surfaceHighlight p-2">
                 <button

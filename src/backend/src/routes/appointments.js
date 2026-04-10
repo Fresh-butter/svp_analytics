@@ -7,7 +7,7 @@ const router = Router();
 router.get('/', authenticate, (req, res) => {
     // #swagger.tags = ['Appointments']
     // #swagger.summary = 'List appointments'
-    // #swagger.description = 'Returns appointments for a chapter, paginated by month and year. Defaults to current month/year.'
+    // #swagger.description = 'Returns appointments for a chapter, paginated by month and year. Partner users are automatically scoped to their assigned meetings.'
     /* #swagger.security = [{ "bearerAuth": [] }] */
     /* #swagger.parameters['chapter_id'] = {
          in: 'query',
@@ -50,6 +50,24 @@ router.get('/', authenticate, (req, res) => {
     /* #swagger.responses[500] = { description: 'Internal server error' } */
     return AppointmentController.list(req, res);
 });
+
+  router.get('/notifications', authenticate, (req, res) => {
+    // #swagger.tags = ['Appointments']
+    // #swagger.summary = 'List overdue pending appointments for the current user'
+    // #swagger.description = 'Returns pending appointments in the past that are assigned to the authenticated user. Partners only see meetings assigned to them.'
+    /* #swagger.security = [{ "bearerAuth": [] }] */
+    /* #swagger.responses[200] = { description: 'Notification appointments' } */
+    /* #swagger.responses[500] = { description: 'Internal server error' } */
+    return AppointmentController.notifications(req, res);
+  });
+
+  router.get('/assigned', authenticate, (req, res) => {
+    // #swagger.tags = ['Appointments']
+    // #swagger.summary = 'List appointments assigned to the current partner'
+    // #swagger.description = 'For partner users returns all assigned appointments; admins can use partner_id query when needed.'
+    /* #swagger.security = [{ "bearerAuth": [] }] */
+    return AppointmentController.assigned(req, res);
+  });
 
 router.get('/:id', authenticate, (req, res) => {
     // #swagger.tags = ['Appointments']
@@ -191,6 +209,28 @@ router.patch('/:id/complete', authenticate, (req, res) => {
     /* #swagger.responses[404] = { description: 'Appointment not found or already completed' } */
     /* #swagger.responses[500] = { description: 'Internal server error' } */
     return AppointmentController.complete(req, res);
+});
+
+router.patch('/:id/respond', authenticate, (req, res) => {
+    // #swagger.tags = ['Appointments']
+    // #swagger.summary = 'Partner response for upcoming meeting'
+    // #swagger.description = 'Partner can mark planned attendance as PRESENT or ABSENT for assigned appointments.'
+    /* #swagger.security = [{ "bearerAuth": [] }] */
+    /* #swagger.requestBody = {
+         required: true,
+         content: {
+           "application/json": {
+             schema: {
+               type: 'object',
+               required: ['response_status'],
+               properties: {
+                 response_status: { type: 'string', enum: ['PRESENT', 'ABSENT'] }
+               }
+             }
+           }
+         }
+       } */
+    return AppointmentController.respond(req, res);
 });
 
 router.delete('/:id', authenticate, (req, res) => {

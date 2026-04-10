@@ -3,6 +3,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -19,6 +20,14 @@ const CHAPTER = Object.freeze({
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+
+const DEFAULT_PARTNER_PASSWORD = 'partner123';
+
+function prismaModelHasField(modelName, fieldName) {
+  const model = prisma?._runtimeDataModel?.models?.[modelName];
+  if (!model || !Array.isArray(model.fields)) return false;
+  return model.fields.some((field) => field.name === fieldName);
+}
 
 const CHAPTERS_REQUIRED = [CHAPTER.HYDERABAD, CHAPTER.BANGALORE];
 
@@ -386,6 +395,7 @@ function buildAppointments(chapterName) {
 async function seedDummyData() {
   try {
     console.log('Seeding large dummy data set (excluding chapters/admins)...');
+    const supportsUserPartnerLink = prismaModelHasField('users', 'partner_id');
 
     const chapters = await prisma.chapters.findMany({
       where: { chapter_name: { in: CHAPTERS_REQUIRED } },
@@ -471,6 +481,39 @@ async function seedDummyData() {
         await prisma.partners.update({
           where: { partner_id: current.partner_id },
           data: { primary_partner_id: primary.partner_id },
+        });
+      }
+
+      for (const partner of PARTNERS_BY_CHAPTER[chapterName]) {
+        const partnerRecord = partnerByChapterAndEmail.get(`${chapterName}::${partner.email}`);
+        if (!partnerRecord) {
+          throw new Error(`Partner not found while seeding login account: ${partner.email}`);
+        }
+
+        const password_hash = await bcrypt.hash(DEFAULT_PARTNER_PASSWORD, 10);
+        await prisma.users.upsert({
+          where: {
+            chapter_id_email: {
+              chapter_id: chapter.chapter_id,
+              email: partner.email,
+            },
+          },
+          update: {
+            user_type: 'PARTNER',
+            is_active: false,
+            name: partner.name,
+            password_hash,
+            ...(supportsUserPartnerLink ? { partner_id: partnerRecord.partner_id } : {}),
+          },
+          create: {
+            chapter_id: chapter.chapter_id,
+            user_type: 'PARTNER',
+            is_active: false,
+            name: partner.name,
+            email: partner.email,
+            password_hash,
+            ...(supportsUserPartnerLink ? { partner_id: partnerRecord.partner_id } : {}),
+          },
         });
       }
 

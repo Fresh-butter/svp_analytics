@@ -1,0 +1,10 @@
+BEGIN;
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE appointment_partners
+  ADD COLUMN IF NOT EXISTS partner_response_status VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS partner_response_at TIMESTAMPTZ;
+
+COMMIT;

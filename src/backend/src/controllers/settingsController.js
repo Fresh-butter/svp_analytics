@@ -1,4 +1,5 @@
 const { UserRepository } = require('../repositories');
+const { AuthService } = require('../services');
 
 class SettingsController {
   /** GET /settings/admins — list admins for current user's chapter */
@@ -64,6 +65,39 @@ class SettingsController {
     } catch (err) {
       console.error('Remove admin error:', err);
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to remove admin' } });
+    }
+  }
+
+  static async requestPasswordResetOtp(req, res) {
+    try {
+      if (!req.user) return res.status(401).json({ success: false, error: { code: 'AUTH_MISSING', message: 'Not authenticated' } });
+      const result = await AuthService.requestPasswordResetOtp(req.user.user_id);
+      res.json({ success: true, data: result });
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: err.message } });
+      if (err.code === 'EMAIL_NOT_CONFIGURED') return res.status(503).json({ success: false, error: { code: 'EMAIL_NOT_CONFIGURED', message: err.message } });
+      console.error('Request password reset OTP error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to request OTP' } });
+    }
+  }
+
+  static async resetPasswordWithOtp(req, res) {
+    try {
+      if (!req.user) return res.status(401).json({ success: false, error: { code: 'AUTH_MISSING', message: 'Not authenticated' } });
+      const { otp, new_password } = req.body;
+      if (!otp || !new_password) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'otp and new_password are required' } });
+      }
+      if (String(new_password).length < 8) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'new_password must be at least 8 characters' } });
+      }
+      const result = await AuthService.resetPasswordWithOtp(req.user.user_id, otp, new_password);
+      res.json({ success: true, data: result });
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: err.message } });
+      if (err.code === 'INVALID_OTP') return res.status(400).json({ success: false, error: { code: 'INVALID_OTP', message: err.message } });
+      console.error('Reset password with OTP error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to reset password' } });
     }
   }
 }

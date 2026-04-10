@@ -57,6 +57,7 @@ const TODAY = new Date();
 export const CalendarPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const isPartner = user?.user_type === 'PARTNER';
   const chapterId = user?.chapter_id || 1;
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -173,19 +174,21 @@ export const CalendarPage = () => {
   }, [normalizeRecurringWithNames]);
 
   const fetchGroups = useCallback(async () => {
+    if (isPartner) return;
     try { setGroups(await groupService.getAll()); } catch (err) { console.error('Failed to fetch groups:', err); }
-  }, []);
+  }, [isPartner]);
 
   const fetchInvestees = useCallback(async () => {
+    if (isPartner) return;
     try { setInvestees(await investeeService.getAll()); } catch (err) { console.error('Failed to fetch investees:', err); }
-  }, []);
+  }, [isPartner]);
 
   const fetchLookupOptions = useCallback(async () => {
     try {
       const [apptTypes, grpTypes, partners] = await Promise.all([
         lookupService.listAppointmentTypes().catch(() => []),
         lookupService.listGroupTypes().catch(() => []),
-        partnerService.getAll().catch(() => []),
+        isPartner ? Promise.resolve([]) : partnerService.getAll().catch(() => []),
       ]);
       setAppointmentTypes(apptTypes);
       setGroupTypes(grpTypes);
@@ -193,7 +196,7 @@ export const CalendarPage = () => {
     } catch (err) {
       console.error('Failed to fetch lookup options:', err);
     }
-  }, []);
+  }, [isPartner]);
 
   useEffect(() => {
     fetchAppointments();
@@ -286,6 +289,7 @@ export const CalendarPage = () => {
   // --- Logic ---
 
   const handleOpenAddApp = () => {
+    if (isPartner) return;
     const today = startOfDay(new Date());
     const defaultDate = isBefore(selectedDate, today) ? new Date() : selectedDate;
     appointmentForm.setForm({
@@ -297,6 +301,7 @@ export const CalendarPage = () => {
   };
 
   const handleOpenAddRec = () => {
+    if (isPartner) return;
     const today = startOfDay(new Date());
     const defaultDate = isBefore(selectedDate, today) ? new Date() : selectedDate;
     recurringForm.setForm({
@@ -309,6 +314,7 @@ export const CalendarPage = () => {
   };
 
   const handleCreateAppointment = async (formData: AppointmentFormState, selectedPartnerIds: string[] = []) => {
+    if (isPartner) return;
     try {
       const occurrenceDate = formData.meeting_date || formData.occurrence_date;
 
@@ -360,6 +366,7 @@ export const CalendarPage = () => {
   };
 
   const handleCreateRecurring = async (formData: RecurringFormState, selectedPartnerIds: string[] = []) => {
+    if (isPartner) return;
     try {
       const recurrenceUi = parseRecurrenceUiStateFromLegacy(formData.frequency, formData.frequency_json);
       const plannedStart = formData.planned_start || '09:00';
@@ -403,6 +410,7 @@ export const CalendarPage = () => {
   };
 
   const handleViewRecurringDetail = (rec: RecurringAppointment, _occurrenceDate?: Date) => {
+    if (isPartner) return;
     const recurringId = getRecurringId(rec);
     if (!recurringId) return;
     navigate(`/recurring-appointments/${recurringId}`);
@@ -515,6 +523,7 @@ export const CalendarPage = () => {
         }}
         onOpenAddEvent={handleOpenAddApp}
         onOpenAddRecurring={handleOpenAddRec}
+        canEdit={!isPartner}
       />
 
       {/* =================== GRID VIEW =================== */}
@@ -551,28 +560,32 @@ export const CalendarPage = () => {
       )}
 
       {/* Appointment Creation/Edit Modal */}
-      <CreateAppointmentModal
-        isOpen={isAppModalOpen}
-        onClose={() => setIsAppModalOpen(false)}
-        onSubmit={handleCreateAppointment}
-        appointmentTypes={appointmentTypes}
-        groupTypes={groupTypes}
-        investees={investees}
-        allPartners={allPartners}
-        initialData={appointmentForm.form.app_id ? appointmentForm.form : undefined}
-      />
+      {!isPartner && (
+        <>
+          <CreateAppointmentModal
+            isOpen={isAppModalOpen}
+            onClose={() => setIsAppModalOpen(false)}
+            onSubmit={handleCreateAppointment}
+            appointmentTypes={appointmentTypes}
+            groupTypes={groupTypes}
+            investees={investees}
+            allPartners={allPartners}
+            initialData={appointmentForm.form.app_id ? appointmentForm.form : undefined}
+          />
 
-      {/* Recurring Creation/Edit Modal */}
-      <CreateRecurringModal
-        isOpen={isRecModalOpen}
-        onClose={() => setIsRecModalOpen(false)}
-        onSubmit={handleCreateRecurring}
-        appointmentTypes={appointmentTypes}
-        groups={groups}
-        investees={investees}
-        allPartners={allPartners}
-        initialData={recurringForm.form.rec_app_id ? recurringForm.form : undefined}
-      />
+          {/* Recurring Creation/Edit Modal */}
+          <CreateRecurringModal
+            isOpen={isRecModalOpen}
+            onClose={() => setIsRecModalOpen(false)}
+            onSubmit={handleCreateRecurring}
+            appointmentTypes={appointmentTypes}
+            groups={groups}
+            investees={investees}
+            allPartners={allPartners}
+            initialData={recurringForm.form.rec_app_id ? recurringForm.form : undefined}
+          />
+        </>
+      )}
 
     </div>
   );

@@ -39,6 +39,18 @@ interface SingleResponse {
   data: BackendAppointment;
 }
 
+interface AssignedResponse {
+  success: boolean;
+  data: BackendAppointment[];
+}
+
+export interface AppointmentNotification extends Appointment {
+  notification_type?: string;
+  notification_message?: string;
+  response_at?: string | null;
+  focus_partner_id?: string | null;
+}
+
 export const appointmentService = {
   /** List appointments paginated by month/year */
   async list(params?: {
@@ -64,6 +76,8 @@ export const appointmentService = {
       appointment_partner_id: string;
       is_present: boolean | null;
       absent_informed?: boolean | null;
+      partner_response_status?: 'PRESENT' | 'ABSENT' | null;
+      partner_response_at?: string | null;
       partner_id: string;
       partner_name: string;
       email: string;
@@ -123,6 +137,29 @@ export const appointmentService = {
   /** Delete appointment (cascades to appointment_partners) */
   async remove(id: string): Promise<void> {
     await api.delete(`/appointments/${id}`);
+  },
+
+  /** Overdue pending appointments assigned to the current user */
+  async getNotifications(): Promise<Appointment[]> {
+    const res = await api.get<{ success: boolean; data: Array<BackendAppointment & { notification_type?: string; notification_message?: string; response_at?: string | null; focus_partner_id?: string | null }> }>('/appointments/notifications');
+    return res.data.map((item) => {
+      const mapped = mapAppointment(item) as AppointmentNotification;
+      mapped.notification_type = item.notification_type;
+      mapped.notification_message = item.notification_message;
+      mapped.response_at = item.response_at || null;
+      mapped.focus_partner_id = item.focus_partner_id || null;
+      return mapped;
+    });
+  },
+
+  async getAssigned(): Promise<Appointment[]> {
+    const res = await api.get<AssignedResponse>('/appointments/assigned');
+    return res.data.map(mapAppointment);
+  },
+
+  async respond(id: string, response_status: 'PRESENT' | 'ABSENT'): Promise<Appointment> {
+    const res = await api.patch<SingleResponse>(`/appointments/${id}/respond`, { response_status });
+    return mapAppointment(res.data);
   },
 
   /** Bulk import appointments (rows array) */

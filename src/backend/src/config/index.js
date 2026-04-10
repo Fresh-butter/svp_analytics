@@ -29,6 +29,8 @@ const config = {
   databaseUrl,
   jwtSecret: jwtSecretFromEnv || 'svp-analytics-dev-secret',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
+  activationExpiresIn: process.env.ACTIVATION_EXPIRES_IN || '2h',
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
   corsOrigin,
   nodeEnv,
   defaultPageLimit: 50,

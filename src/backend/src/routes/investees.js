@@ -1,10 +1,10 @@
 const { Router } = require('express');
 const { InvesteeController } = require('../controllers');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Investees']
   // #swagger.summary = 'List all investees'
   // #swagger.description = 'Returns investees for a chapter. Supports filtering by active status.'
@@ -26,7 +26,7 @@ router.get('/', authenticate, (req, res) => {
   return InvesteeController.list(req, res);
 });
 
-router.get('/:id', authenticate, (req, res) => {
+router.get('/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Investees']
   // #swagger.summary = 'Get investee by ID'
   // #swagger.description = 'Returns an investee with groups and appointment details. Optionally filtered by month and year.'
@@ -54,7 +54,7 @@ router.get('/:id', authenticate, (req, res) => {
   return InvesteeController.get(req, res);
 });
 
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Investees']
   // #swagger.summary = 'Create a new investee'
   // #swagger.description = 'Creates a new investee. Requires chapter_id, investee_name, email, and start_date.'
@@ -84,7 +84,7 @@ router.post('/', authenticate, (req, res) => {
   return InvesteeController.create(req, res);
 });
 
-router.put('/:id', authenticate, (req, res) => {
+router.put('/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Investees']
   // #swagger.summary = 'Update an investee'
   // #swagger.description = 'Update investee details by ID.'
@@ -119,7 +119,7 @@ router.put('/:id', authenticate, (req, res) => {
   return InvesteeController.update(req, res);
 });
 
-router.delete('/:id', authenticate, (req, res) => {
+router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Investees']
   // #swagger.summary = 'Delete an investee'
   // #swagger.description = 'Deletes an investee. Blocked if referenced by other entities.'

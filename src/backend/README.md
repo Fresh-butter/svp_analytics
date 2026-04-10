@@ -1,6 +1,6 @@
 # SVP Analytics — Backend API
 
-REST API for the **SVP Partner Engagement Dashboard** — tracks partners, investees, groups, and appointments for SVP chapters.
+REST API for the **SVP Partner Engagement Dashboard** — tracks partners, investees, groups, appointments, and partner-scoped dashboards for SVP chapters.
 
 - **Runtime:** Node.js 18+ / Express
 - **Database:** PostgreSQL 12+ (Prisma ORM with `pg` adapter)
@@ -96,6 +96,7 @@ cp .env.example .env
 | `npm start` | Start production server |
 | `npm run setup` | **First-time interactive setup wizard** |
 | `npm run db:seed:admins` | Seed only chapters + admin users |
+| `npm run db:seed:partners` | Seed partner login accounts for all partners with email addresses |
 | `npm run db:seed:dummy` | Seed dummy data for non-admin entities |
 | `npm run db:seed` | Run both seeders in sequence |
 | `npm run swagger` | Generate the Swagger/OpenAPI spec used by the UI |
@@ -110,8 +111,11 @@ The schema is applied in two files:
 |------|----------|
 | `schema/db-schema-v1.0.sql` | Core tables: `chapters`, `partners`, `investees`, `groups`, `group_partners`, `appointments`, `appointment_partners`, `users` |
 | `schema/db-schema-v1.1.sql` | Recurring appointments: `recurring_appointments`, `recurring_appointment_partners` |
+| `schema/db-schema-v1.2.sql` | Attendance metadata for `appointment_partners` |
+| `schema/db-schema-v1.3.sql` | Partner login linkage via `users.partner_id` |
+| `schema/db-schema-v1.4.sql` | Name fields for `appointments` and `recurring_appointments` |
 
-`npm run setup` applies both automatically in order.
+`npm run setup` applies all schema files automatically in order.
 
 ---
 
@@ -129,13 +133,16 @@ backend/
 ├── schema/
 │   ├── db-schema-v1.0.sql        Base schema
 │   ├── db-schema-v1.1.sql        Recurring appointments migration
+│   ├── db-schema-v1.2.sql        Attendance metadata migration
+│   ├── db-schema-v1.3.sql        Partner login linkage migration
+│   ├── db-schema-v1.4.sql        Appointment name columns migration
 │   └── schema.prisma             SQL-first schema snapshot
 ├── SWAGGER_TESTING_GUIDE.md      Guide to testing via Swagger UI
 │
 ├── scripts/                      Developer utility scripts
 │   ├── setup.js                  Interactive setup wizard (new/existing modes)
 │   ├── seed-admin-chapters.js    Seeds chapters + admin users only
-│   └── seed-dummy-data.js        Seeds dummy data for all other entities
+│   └── seed-dummy-data.js        Seeds dummy data for all other entities + partner login accounts
 │
 └── src/                          Application source
     ├── index.js                  Express app entry point
@@ -205,6 +212,7 @@ All endpoints are prefixed with `/api`. Full interactive docs at `/api/docs`.
 | Groups | `/api/groups` | Group management + partner membership |
 | Appointments | `/api/appointments` | Appointment scheduling + attendance |
 | Recurring Appts | `/api/recurring-appointments` | Recurring templates + materialization |
+| Appointment Alerts | `/api/appointments/notifications` | Overdue pending meetings assigned to the current user |
 | Lookups | `/api/group-types`, `/api/appointment-types` | Lookup type management |
 
 ### Authentication
@@ -214,6 +222,8 @@ POST /api/auth/login
 { "email": "...", "password": "..." }
 → { "token": "<jwt>" }
 ```
+
+Partner accounts use the same login endpoint. When a user is stored with `user_type = PARTNER`, the JWT and `/api/auth/me` response include the linked partner profile so the frontend can automatically scope calendar, analytics, and notifications.
 
 Pass the token as a header on subsequent requests:
 ```
@@ -238,6 +248,8 @@ Briefly, how password reset works in this backend:
 After `npm run setup` (and selecting admin seeding) or `npm run db:seed:admins`, chapter and admin accounts are created from `scripts/seed-admin-chapters.js`.
 
 After `npm run db:seed:dummy`, all non-admin entities are populated with realistic dummy data (Hyderabad-heavy distribution) for testing.
+
+Dummy partner login accounts are also created during the dummy-data seed. You can also run `npm run db:seed:partners` to create or refresh partner logins for any existing partner records. The default password for seeded partner accounts is `partner123` unless `DEFAULT_PARTNER_PASSWORD` is set.
 
 ---
 

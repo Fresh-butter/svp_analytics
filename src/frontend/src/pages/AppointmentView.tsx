@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, CheckCircle, Clock, Mail, Repeat, Users } from 'lucide-react';
 import { Button, Card, Modal } from '../components/Common';
 import { appointmentService } from '../services/appointmentService';
@@ -8,13 +8,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDate, formatTime } from '../utils/formatters';
 import { AppointmentStatusBadge } from '../components/StatusBadge';
 import { parseLocalDate } from '../utils/appointmentHelpers';
+import { useAuth } from '../context/AuthContext';
 
 type AttendanceChoice = 'PRESENT' | 'ABSENT_INFORMED' | 'ABSENT_NOT_INFORMED';
 
 export const AppointmentViewPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isPartner = user?.user_type === 'PARTNER';
+  const [actionMessage, setActionMessage] = useState('');
+  const partnerRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const focusPartnerId = searchParams.get('focus_partner') || '';
 
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [attendance, setAttendance] = useState<Array<{ partner_id: string; partner_name: string; choice: AttendanceChoice }>>([]);
@@ -93,6 +100,29 @@ export const AppointmentViewPage = () => {
     },
   });
 
+  const respondMutation = useMutation({
+    mutationFn: async (response_status: 'PRESENT' | 'ABSENT') => {
+      if (!id) return;
+      return appointmentService.respond(id, response_status);
+    },
+    onSuccess: async (_data, response_status) => {
+      setActionMessage(response_status === 'PRESENT' ? 'Meeting accepted successfully.' : 'Marked as will be absent.');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['appointment-detail', id] }),
+        queryClient.invalidateQueries({ queryKey: ['header-notification-appointments'] }),
+        queryClient.invalidateQueries({ queryKey: ['partner-assigned-appointments'] }),
+      ]);
+    },
+  });
+
+  useEffect(() => {
+    if (!focusPartnerId) return;
+    const node = partnerRefs.current[focusPartnerId];
+    if (node) {
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [focusPartnerId, data?.appointmentDetail?.partners]);
+
   if (isLoading) return <div className="p-12 text-center text-textMuted">Loading appointment...</div>;
   if (!data?.appointmentDetail) return <div className="p-12 text-center text-textMuted">Appointment not found.</div>;
 
@@ -108,7 +138,9 @@ export const AppointmentViewPage = () => {
   const eventDate = parseLocalDate(appt.occurrence_date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const canComplete = (normalizedStatus === 'PENDING' || normalizedStatus === 'SCHEDULED') && eventDate.getTime() <= today.getTime();
+  const canComplete = !isPartner && (normalizedStatus === 'PENDING' || normalizedStatus === 'SCHEDULED') && eventDate.getTime() <= today.getTime();
+  const myPartnerRow = detail.partners.find((partner) => partner.partner_id === user?.partner_id);
+  const canRespond = isPartner && normalizedStatus === 'PENDING' && Boolean(myPartnerRow);
 
   const fmtDateTime = (value?: string) => {
     if (!value) return '-';
@@ -117,9 +149,15 @@ export const AppointmentViewPage = () => {
     return d.toLocaleString();
   };
 
+  const responseLabel = (status?: string | null) => {
+    if (status === 'PRESENT') return 'Meeting accepted';
+    if (status === 'ABSENT') return 'Will be absent';
+    return 'Not informed';
+  };
+
   return (
     <div className="space-y-6">
-      <button onClick={() => navigate('/appointments')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
+      <button onClick={() => navigate(isPartner ? '/calendar' : '/appointments')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
         <ArrowLeft size={16} /> Back to Appointments
       </button>
 
@@ -144,12 +182,12 @@ export const AppointmentViewPage = () => {
                 <CheckCircle size={16} /> Complete
               </Button>
             )}
-            {(normalizedStatus === 'COMPLETED' || normalizedStatus === 'CANCELLED') && (
+            {!isPartner && (normalizedStatus === 'COMPLETED' || normalizedStatus === 'CANCELLED') && (
               <Button variant="secondary" onClick={() => statusMutation.mutate('PENDING')}>
                 Set Pending
               </Button>
             )}
-            {(normalizedStatus === 'PENDING' || normalizedStatus === 'SCHEDULED' || normalizedStatus === 'COMPLETED') && (
+            {!isPartner && (normalizedStatus === 'PENDING' || normalizedStatus === 'SCHEDULED' || normalizedStatus === 'COMPLETED') && (
               <Button variant="secondary" onClick={() => statusMutation.mutate('CANCELLED')}>
                 Set Cancelled
               </Button>
@@ -157,6 +195,39 @@ export const AppointmentViewPage = () => {
           </div>
         </div>
       </Card>
+
+      {canRespond && (
+        <Card className="p-6 bg-surface border-surfaceHighlight">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-lg font-semibold text-text">Your Response</h2>
+              <p className="text-sm text-textMuted mt-1">
+                Inform admin whether you plan to be present for this meeting.
+              </p>
+              <p className="text-xs text-textMuted mt-2">
+                Current: {responseLabel(myPartnerRow?.partner_response_status)}
+              </p>
+              {actionMessage && (
+                <div className="mt-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-1 rounded inline-block">
+                  {actionMessage}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => respondMutation.mutate('ABSENT')}
+                disabled={respondMutation.isPending}
+              >
+                Mark Absent
+              </Button>
+              <Button onClick={() => respondMutation.mutate('PRESENT')} disabled={respondMutation.isPending}>
+                Mark Present
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card className="p-6 bg-surface border-surfaceHighlight space-y-3">
         <div className="flex items-center gap-2">
@@ -218,17 +289,33 @@ export const AppointmentViewPage = () => {
         ) : (
           <div className="space-y-2">
             {detail.partners.map((p) => (
-              <div key={p.partner_id} className="flex items-center justify-between px-3 py-2 bg-surfaceHighlight/20 rounded-lg text-sm">
+              <div
+                key={p.partner_id}
+                ref={(node) => {
+                  partnerRefs.current[p.partner_id] = node;
+                }}
+                className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${focusPartnerId === p.partner_id ? 'bg-primary/20 border border-primary/40' : 'bg-surfaceHighlight/20'}`}
+              >
                 <div>
                   <p className="text-text">{p.partner_name}</p>
                   <p className="text-xs text-textMuted">{p.email}</p>
                 </div>
                 {p.is_present === null ? (
-                  <span className="text-xs text-textMuted">Not marked</span>
+                  <div className="text-right">
+                    <span className="text-xs text-textMuted">Not marked</span>
+                    <p className="text-[11px] text-textMuted mt-0.5">
+                      Intent: {responseLabel(p.partner_response_status)}
+                    </p>
+                  </div>
                 ) : (
-                  <span className={p.is_present ? 'text-green-500 text-xs' : 'text-red-400 text-xs'}>
-                    {p.is_present ? 'Present' : p.absent_informed === true ? 'Absent (Informed)' : p.absent_informed === false ? 'Absent (Not Informed)' : 'Absent'}
-                  </span>
+                  <div className="text-right">
+                    <span className={p.is_present ? 'text-green-500 text-xs' : 'text-red-400 text-xs'}>
+                      {p.is_present ? 'Present' : p.absent_informed === true ? 'Absent (Informed)' : p.absent_informed === false ? 'Absent (Not Informed)' : 'Absent'}
+                    </span>
+                    <p className="text-[11px] text-textMuted mt-0.5">
+                      Intent: {responseLabel(p.partner_response_status)}
+                    </p>
+                  </div>
                 )}
               </div>
             ))}

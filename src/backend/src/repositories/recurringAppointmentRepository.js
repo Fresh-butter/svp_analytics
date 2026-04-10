@@ -3,9 +3,32 @@ const { formatRow, formatRows, fmtDate, fmtTime, fmtTimestamp, parseTime, parseL
 
 class RecurringAppointmentRepository {
   /* ── List all templates ── */
-  static async findAll(chapter_id) {
+  static buildPartnerAccessWhere(partner_id) {
+    if (!partner_id) return {};
+
+    const today = utcToday();
+    return {
+      OR: [
+        { recurring_appointment_partners: { some: { partner_id } } },
+        {
+          groups: {
+            group_partners: {
+              some: {
+                partner_id,
+                start_date: { lte: today },
+                OR: [{ end_date: null }, { end_date: { gte: today } }],
+              },
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  static async findAll(chapter_id, partner_id) {
     const where = {};
     if (chapter_id) where.chapter_id = chapter_id;
+    Object.assign(where, this.buildPartnerAccessWhere(partner_id));
 
     const rows = await prisma.recurring_appointments.findMany({
       where,
@@ -59,6 +82,18 @@ class RecurringAppointmentRepository {
     delete result.recurring_appointment_partners;
 
     return result;
+  }
+
+  static async hasAccess(id, partner_id) {
+    if (!partner_id) return true;
+    const row = await prisma.recurring_appointments.findFirst({
+      where: {
+        rec_appointment_id: id,
+        ...this.buildPartnerAccessWhere(partner_id),
+      },
+      select: { rec_appointment_id: true },
+    });
+    return !!row;
   }
 
   /* ── Create template with optional partner subset ── */

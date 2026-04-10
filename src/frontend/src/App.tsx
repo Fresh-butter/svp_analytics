@@ -1,9 +1,11 @@
 import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { PrivateRoute } from './components/PrivateRoute';
+import { RoleRoute } from './components/RoleRoute';
 import { Layout } from './components/Layout';
 
 const LoginPage = lazy(() => import('./pages/Login').then((m) => ({ default: m.LoginPage })));
+const PartnerActivationPage = lazy(() => import('./pages/PartnerActivation').then((m) => ({ default: m.PartnerActivationPage })));
 const HomePage = lazy(() => import('./pages/Home').then((m) => ({ default: m.HomePage })));
 const PartnersPage = lazy(() => import('./pages/Partners').then((m) => ({ default: m.PartnersPage })));
 const PartnerViewPage = lazy(() => import('./pages/PartnerView').then((m) => ({ default: m.PartnerViewPage })));
@@ -29,23 +31,29 @@ function App() {
     <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/activate" element={<PartnerActivationPage />} />
+        <Route path="/partner-activate" element={<PartnerActivationPage />} />
+        <Route path="/partner-activation" element={<PartnerActivationPage />} />
 
         <Route element={<PrivateRoute />}>
           <Route element={<Layout><HomePage /></Layout>} path="/" />
-          <Route element={<Layout><PartnersPage /></Layout>} path="/partners" />
-          <Route element={<Layout><PartnerViewPage /></Layout>} path="/partners/:id" />
-          <Route element={<Layout><InvesteesPage /></Layout>} path="/investees" />
-          <Route element={<Layout><InvesteeViewPage /></Layout>} path="/investees/:id" />
-          <Route element={<Layout><GroupsPage /></Layout>} path="/groups" />
-          <Route element={<Layout><GroupViewPage /></Layout>} path="/groups/:id" />
-          <Route element={<Layout><AppointmentsPage /></Layout>} path="/appointments" />
-          <Route element={<Layout><AppointmentViewPage /></Layout>} path="/appointments/:id" />
-          <Route element={<Layout><RecurringAppointmentsPage /></Layout>} path="/recurring-appointments" />
-          <Route element={<Layout><RecurringAppointmentViewPage /></Layout>} path="/recurring-appointments/:id" />
           <Route element={<Layout><CalendarPage /></Layout>} path="/calendar" />
           <Route element={<Layout><AnalyticsPage /></Layout>} path="/analytics" />
-          <Route element={<Layout><SettingsPage /></Layout>} path="/settings" />
           <Route element={<Layout><FeedbackPage /></Layout>} path="/feedback" />
+          <Route element={<Layout><AppointmentViewPage /></Layout>} path="/appointments/:id" />
+          <Route element={<Layout><SettingsPage /></Layout>} path="/settings" />
+
+          <Route element={<RoleRoute allowedRoles={['ADMIN']} />}>
+            <Route element={<Layout><PartnersPage /></Layout>} path="/partners" />
+            <Route element={<Layout><PartnerViewPage /></Layout>} path="/partners/:id" />
+            <Route element={<Layout><InvesteesPage /></Layout>} path="/investees" />
+            <Route element={<Layout><InvesteeViewPage /></Layout>} path="/investees/:id" />
+            <Route element={<Layout><GroupsPage /></Layout>} path="/groups" />
+            <Route element={<Layout><GroupViewPage /></Layout>} path="/groups/:id" />
+            <Route element={<Layout><AppointmentsPage /></Layout>} path="/appointments" />
+            <Route element={<Layout><RecurringAppointmentsPage /></Layout>} path="/recurring-appointments" />
+            <Route element={<Layout><RecurringAppointmentViewPage /></Layout>} path="/recurring-appointments/:id" />
+          </Route>
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

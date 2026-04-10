@@ -9,8 +9,9 @@ class RecurringAppointmentController {
   static async list(req, res) {
     try {
       const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const partner_id = req.user?.user_type === 'PARTNER' ? req.user.partner_id : null;
       
-      const rows = await RecurringAppointmentRepository.findAll(chapter_id);
+      const rows = await RecurringAppointmentRepository.findAll(chapter_id, partner_id);
 
       res.json({
         success: true,
@@ -31,6 +32,7 @@ class RecurringAppointmentController {
    */
   static async get(req, res) {
     try {
+      const partner_id = req.user?.user_type === 'PARTNER' ? req.user.partner_id : null;
       const template = await RecurringAppointmentRepository.findById(req.params.id);
       if (!template) {
         res.status(404).json({
@@ -38,6 +40,13 @@ class RecurringAppointmentController {
           error: { code: 'NOT_FOUND', message: 'Recurring appointment not found' },
         });
         return;
+      }
+      if (partner_id) {
+        const allowed = await RecurringAppointmentRepository.hasAccess(req.params.id, partner_id);
+        if (!allowed) {
+          res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You do not have access to this recurring appointment' } });
+          return;
+        }
       }
       res.json({ success: true, data: template });
     } catch (err) {
@@ -55,6 +64,10 @@ class RecurringAppointmentController {
    */
   static async create(req, res) {
     try {
+      if (req.user?.user_type !== 'ADMIN') {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can create recurring appointments' } });
+        return;
+      }
       const { chapter_id, start_time, duration_minutes, rrule, start_date, end_date } = req.body;
 
       if (!chapter_id || !start_time || !duration_minutes || !rrule || !start_date || !end_date) {
@@ -126,6 +139,10 @@ class RecurringAppointmentController {
    */
   static async update(req, res) {
     try {
+      if (req.user?.user_type !== 'ADMIN') {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can update recurring appointments' } });
+        return;
+      }
       // Validate rrule if provided
       if (req.body.rrule) {
         const rruleValidation = MaterializationService.validateRRule(req.body.rrule);
@@ -185,6 +202,10 @@ class RecurringAppointmentController {
    */
   static async remove(req, res) {
     try {
+      if (req.user?.user_type !== 'ADMIN') {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can delete recurring appointments' } });
+        return;
+      }
       const result = await RecurringAppointmentRepository.delete(req.params.id);
       if (!result.deleted) {
         res.status(404).json({
@@ -212,6 +233,10 @@ class RecurringAppointmentController {
    */
   static async materialize(req, res) {
     try {
+      if (req.user?.user_type !== 'ADMIN') {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can materialize recurring appointments' } });
+        return;
+      }
       const { occurrence_date } = req.body;
 
       if (!occurrence_date) {

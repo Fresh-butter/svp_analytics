@@ -73,12 +73,14 @@ class AppointmentController {
   static async list(req, res) {
     try {
       const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const partner_id = req.user?.user_type === 'PARTNER' ? req.user.partner_id : req.query.partner_id;
       
       const today = new Date();
       const month = req.query.month || (today.getMonth() + 1);
       const year = req.query.year || today.getFullYear();
 
       const filters = { month, year };
+      if (partner_id) filters.partner_id = partner_id;
 
       // Pass the month and year as filters; repository should handle this as filtering/pagination
       const { rows, total } = await AppointmentRepository.findAll(chapter_id, null, filters);
@@ -97,10 +99,19 @@ class AppointmentController {
   /** GET /appointments/:id — with investee, recurring appointment, and partners details */
   static async get(req, res) {
     try {
+      const partner_id = req.user?.user_type === 'PARTNER' ? req.user.partner_id : null;
       const appointment = await AppointmentRepository.findByIdWithDetails(req.params.id);
       if (!appointment) {
         res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found' } });
         return;
+      }
+      if (partner_id) {
+        const allowed = Array.isArray(appointment.partners)
+          && appointment.partners.some((partner) => partner.partner_id === partner_id);
+        if (!allowed) {
+          res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You do not have access to this appointment' } });
+          return;
+        }
       }
       res.json({ success: true, data: appointment });
     } catch (err) {
@@ -114,6 +125,9 @@ class AppointmentController {
    */
   static async create(req, res) {
     try {
+      if (req.user?.user_type !== 'ADMIN') {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can create appointments' } });
+      }
       const { chapter_id, occurrence_date, start_at, end_at } = req.body;
       if (!chapter_id || !(occurrence_date || req.body.appointment_date) || !(start_at || req.body.start_time) || !(end_at || req.body.end_time)) {
         return res.status(400).json({
@@ -132,6 +146,9 @@ class AppointmentController {
   /** PUT /appointments/:id — update appointment (allows status change) */
   static async update(req, res) {
     try {
+      if (req.user?.user_type !== 'ADMIN') {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can update appointments' } });
+      }
       // Body can include: start_at, end_at, appointment_type_id, group_type_id, investee, array of partners, status
       const appointment = await AppointmentRepository.update(req.params.id, req.body);
       if (!appointment) {
@@ -155,6 +172,9 @@ class AppointmentController {
    */
   static async complete(req, res) {
     try {
+      if (req.user?.user_type !== 'ADMIN') {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can complete appointments' } });
+      }
       const { attendance } = req.body;
       if (!Array.isArray(attendance)) {
         res.status(400).json({
@@ -182,6 +202,9 @@ class AppointmentController {
   /** DELETE /appointments/:id — Delete appointment (cascades to appointment_partners) */
   static async remove(req, res) {
     try {
+      if (req.user?.user_type !== 'ADMIN') {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can delete appointments' } });
+      }
       const result = await AppointmentRepository.delete(req.params.id);
       if (!result.deleted) {
         res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found' } });
@@ -205,6 +228,9 @@ class AppointmentController {
    */
   static async import(req, res) {
     try {
+      if (req.user?.user_type !== 'ADMIN') {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only admins can import appointments' } });
+      }
       const chapter_id = req.body.chapter_id || req.user?.chapter_id;
       const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
 
@@ -340,6 +366,66 @@ class AppointmentController {
     } catch (err) {
       console.error('Appointments import error:', err);
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to import appointments' } });
+    }
+  }
+
+  /** GET /appointments/notifications — overdue pending appointments assigned to the current user */
+  static async notifications(req, res) {
+    try {
+      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const partner_id = req.user?.user_type === 'PARTNER' ? req.user.partner_id : req.query.partner_id;
+      const rows = await AppointmentRepository.findNotifications(chapter_id, partner_id);
+      res.json({ success: true, data: rows });
+    } catch (err) {
+      console.error('Appointment notifications error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch notifications' } });
+    }
+  }
+
+  /** GET /appointments/assigned — appointments assigned to current partner */
+  static async assigned(req, res) {
+    try {
+      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const partner_id = req.user?.user_type === 'PARTNER' ? req.user.partner_id : req.query.partner_id;
+      const rows = await AppointmentRepository.findAssigned(chapter_id, partner_id);
+      res.json({ success: true, data: rows });
+    } catch (err) {
+      console.error('Assigned appointments error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch assigned appointments' } });
+    }
+  }
+
+  /** PATCH /appointments/:id/respond — partner marks planned presence/absence */
+  static async respond(req, res) {
+    try {
+      if (req.user?.user_type !== 'PARTNER') {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only partner users can send responses' } });
+        return;
+      }
+
+      const responseStatus = String(req.body?.response_status || '').toUpperCase();
+      if (!['PRESENT', 'ABSENT'].includes(responseStatus)) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'response_status must be PRESENT or ABSENT' } });
+        return;
+      }
+
+      const appointment = await AppointmentRepository.updatePartnerResponse(req.params.id, req.user.partner_id, responseStatus);
+      if (!appointment) {
+        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found' } });
+        return;
+      }
+      res.json({ success: true, data: appointment });
+    } catch (err) {
+      if (err.code === 'FORBIDDEN') {
+        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: err.message } });
+        return;
+      }
+      if (err.code === 'VALIDATION') {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: err.message } });
+        return;
+      }
+      console.error('Appointment partner response error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update response' } });
     }
   }
 }

@@ -102,6 +102,15 @@ function runNodeScript(scriptName, envOverrides = {}) {
   });
 }
 
+function generatePrismaClient(envOverrides = {}) {
+  console.log('Generating Prisma Client...');
+  execFileSync('npx', ['prisma', 'generate'], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    env: { ...process.env, ...envOverrides },
+  });
+}
+
 async function setupNewDatabase(appConn) {
   console.log('\nStep: new database provisioning');
 
@@ -177,8 +186,17 @@ async function setupNewDatabase(appConn) {
     ignoreErrors: true,
   });
 
-  psqlFile(appConn, path.join(ROOT, 'schema', 'db-schema-v1.0.sql'));
-  psqlFile(appConn, path.join(ROOT, 'schema', 'db-schema-v1.1.sql'));
+  const schemaFiles = [
+    'db-schema-v1.0.sql',
+    'db-schema-v1.1.sql',
+    'db-schema-v1.2.sql',
+    'db-schema-v1.3.sql',
+    'db-schema-v1.4.sql',
+    'db-schema-v1.5.sql',
+  ];
+  for (const fileName of schemaFiles) {
+    psqlFile(appConn, path.join(ROOT, 'schema', fileName));
+  }
 
   console.log('Database/user created and schema applied.');
 }
@@ -195,13 +213,22 @@ async function setupExistingDatabase(appConn) {
   }
 
   const applySchema = await askYesNo(
-    'Apply schema scripts (v1.0 + v1.1) to this existing DB? (y/n)',
+    'Apply schema scripts (v1.0 + v1.5) to this existing DB? (y/n)',
     false
   );
 
   if (applySchema) {
-    psqlFile(appConn, path.join(ROOT, 'schema', 'db-schema-v1.0.sql'));
-    psqlFile(appConn, path.join(ROOT, 'schema', 'db-schema-v1.1.sql'));
+    const schemaFiles = [
+      'db-schema-v1.0.sql',
+      'db-schema-v1.1.sql',
+      'db-schema-v1.2.sql',
+      'db-schema-v1.3.sql',
+      'db-schema-v1.4.sql',
+      'db-schema-v1.5.sql',
+    ];
+    for (const fileName of schemaFiles) {
+      psqlFile(appConn, path.join(ROOT, 'schema', fileName));
+    }
     console.log('Schema applied to existing database.');
   } else {
     console.log('Schema application skipped for existing database mode.');
@@ -269,6 +296,8 @@ async function main() {
   const runDummySeed = await askYesNo('Run dummy-data seed now? (y/n)', false);
 
   const databaseUrl = `postgresql://${appConn.user}:${appConn.password}@${appConn.host}:${appConn.port}/${appConn.database}?schema=public`;
+
+  generatePrismaClient({ DATABASE_URL: databaseUrl });
 
   if (runAdminSeed) {
     runNodeScript('seed-admin-chapters.js', { DATABASE_URL: databaseUrl });

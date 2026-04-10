@@ -7,7 +7,7 @@ const router = Router();
 router.post('/login', (req, res) => {
   // #swagger.tags = ['Auth']
   // #swagger.summary = 'Login with email and password'
-  // #swagger.description = 'Authenticates a user and returns a JWT token.'
+    // #swagger.description = 'Authenticates an admin or partner user and returns a JWT token. Partner accounts are linked to a partner profile and receive partner-scoped access.'
   /* #swagger.requestBody = {
        required: true,
        content: {
@@ -36,7 +36,7 @@ router.post('/login', (req, res) => {
                  type: 'object',
                  properties: {
                    token: { type: 'string' },
-                   user: { type: 'object' }
+                    user: { type: 'object', description: 'Authenticated user profile. Partner users include partner_id and partner_name.' }
                  }
                }
              }
@@ -72,6 +72,50 @@ router.post('/forgot-password', (req, res) => {
   /* #swagger.responses[400] = { description: 'Email is required' } */
   /* #swagger.responses[500] = { description: 'Internal server error' } */
   return AuthController.forgotPassword(req, res);
+});
+
+router.post('/partner-activation/request', (req, res) => {
+  // #swagger.tags = ['Auth']
+  // #swagger.summary = 'Request partner account activation'
+  // #swagger.description = 'Sends an activation link to an existing partner user email.'
+  /* #swagger.requestBody = {
+       required: true,
+       content: {
+         "application/json": {
+           schema: {
+             type: 'object',
+             required: ['email', 'chapter_id'],
+             properties: {
+               email: { type: 'string', example: 'partner@svp.org' },
+               chapter_id: { type: 'string', format: 'uuid' }
+             }
+           }
+         }
+       }
+     } */
+  return AuthController.requestPartnerActivation(req, res);
+});
+
+router.post('/partner-activation/complete', (req, res) => {
+  // #swagger.tags = ['Auth']
+  // #swagger.summary = 'Complete partner account activation'
+  // #swagger.description = 'Activates partner account and sets the login password using activation token.'
+  /* #swagger.requestBody = {
+       required: true,
+       content: {
+         "application/json": {
+           schema: {
+             type: 'object',
+             required: ['token', 'password'],
+             properties: {
+               token: { type: 'string' },
+               password: { type: 'string', example: 'StrongPassword123!' }
+             }
+           }
+         }
+       }
+     } */
+  return AuthController.completePartnerActivation(req, res);
 });
 
 router.post('/logout', authenticate, (req, res) => {

@@ -1,6 +1,15 @@
 const { prisma } = require('../config/prisma');
 const { formatRow } = require('../utils/helpers');
 
+function getPartnerScope(req) {
+  return req.query.partner_id || null;
+}
+
+function buildPartnerAppointmentFilter(partner_id) {
+  if (!partner_id) return {};
+  return { appointment_partners: { some: { partner_id } } };
+}
+
 class AnalyticsController {
   /**
    * GET /analytics/attendance-by-partner
@@ -19,6 +28,7 @@ class AnalyticsController {
       const to_month = req.query.to_month;
       const investee_id = req.query.investee_id;
       const appointment_type_id = req.query.appointment_type_id;
+      const partner_id = getPartnerScope(req);
 
       if (!from_month || !to_month) {
         return res.status(400).json({
@@ -39,6 +49,7 @@ class AnalyticsController {
           chapter_id,
           status: 'COMPLETED',
           occurrence_date: { gte: startDate, lte: endDate },
+          ...buildPartnerAppointmentFilter(partner_id),
           ...(investee_id && { investee_id }),
           ...(appointment_type_id && { appointment_type_id }),
         },
@@ -57,6 +68,7 @@ class AnalyticsController {
         const investeeName = appt.investees?.investee_name || 'General';
 
         for (const ap of appt.appointment_partners) {
+          if (partner_id && ap.partners.partner_id !== partner_id) continue;
           const pid = ap.partners.partner_id;
           const isPresent = ap.is_present === true;
 
@@ -117,6 +129,7 @@ class AnalyticsController {
       const chapter_id = req.query.chapter_id || req.user?.chapter_id;
       const from_date = req.query.from_date;
       const to_date = req.query.to_date;
+      const partner_id = getPartnerScope(req);
 
       if (!from_date || !to_date) {
         return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'from_date and to_date are required (format: YYYY-MM-DD)' } });
@@ -130,6 +143,7 @@ class AnalyticsController {
         where: {
           chapter_id,
           occurrence_date: { gte: startDate, lte: endDate },
+          ...buildPartnerAppointmentFilter(partner_id),
         },
         include: {
           appointment_partners: {
@@ -152,6 +166,7 @@ class AnalyticsController {
 
         if (appt.appointment_partners && appt.appointment_partners.length > 0) {
           for (const p of appt.appointment_partners) {
+            if (partner_id && p.partners?.partner_id !== partner_id) continue;
             rows.push({
               appointment_date: apptDate,
               appointment_name: apptName,
@@ -204,6 +219,7 @@ class AnalyticsController {
       const from_month = req.query.from_month;
       const to_month = req.query.to_month;
       const partner_id = req.query.partner_id;
+      const effectivePartnerId = partner_id || null;
 
       if (!from_month || !to_month) {
         return res.status(400).json({
@@ -223,9 +239,7 @@ class AnalyticsController {
           chapter_id,
           status: 'COMPLETED',
           occurrence_date: { gte: startDate, lte: endDate },
-          ...(partner_id && {
-            appointment_partners: { some: { partner_id } },
-          }),
+          ...buildPartnerAppointmentFilter(effectivePartnerId),
         },
         include: {
           appointment_types: { select: { type_name: true } },
@@ -302,6 +316,7 @@ class AnalyticsController {
       const from_month = req.query.from_month;
       const to_month = req.query.to_month;
       const investee_id = req.query.investee_id;
+      const partner_id = getPartnerScope(req);
 
       if (!from_month || !to_month) {
         return res.status(400).json({
@@ -320,6 +335,7 @@ class AnalyticsController {
           chapter_id,
           status: 'COMPLETED',
           occurrence_date: { gte: startDate, lte: endDate },
+          ...buildPartnerAppointmentFilter(partner_id),
           ...(investee_id && { investee_id }),
         },
         include: {
@@ -396,6 +412,7 @@ class AnalyticsController {
       const chapter_id = req.query.chapter_id || req.user?.chapter_id;
       const from_month = req.query.from_month;
       const to_month = req.query.to_month;
+      const partner_id = getPartnerScope(req);
 
       if (!from_month || !to_month) {
         return res.status(400).json({
@@ -414,9 +431,11 @@ class AnalyticsController {
           chapter_id,
           status: 'COMPLETED',
           occurrence_date: { gte: startDate, lte: endDate },
+          ...buildPartnerAppointmentFilter(partner_id),
         },
         include: {
           investees: { select: { investee_name: true } },
+          appointment_partners: { select: { partner_id: true, is_present: true } },
         },
       });
 
@@ -430,6 +449,7 @@ class AnalyticsController {
         let acceptedCount = 0;
         if (appt.appointment_partners && appt.appointment_partners.length > 0) {
           for (const ap of appt.appointment_partners) {
+            if (partner_id && ap.partner_id !== partner_id) continue;
             acceptedCount++;
             if (ap.is_present === true) presentCount++;
           }

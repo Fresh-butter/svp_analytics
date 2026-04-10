@@ -6,6 +6,21 @@ const SORT_COLUMNS = ['occurrence_date', 'appointment_type', 'start_at', 'status
 class AppointmentRepository {
   static allowedSortColumns = SORT_COLUMNS;
 
+  static prismaApHasField(fieldName) {
+    const model = prisma?._runtimeDataModel?.models?.appointment_partners;
+    if (!model || !Array.isArray(model.fields)) return false;
+    return model.fields.some((field) => field.name === fieldName);
+  }
+
+  static buildPartnerAccessWhere(partner_id) {
+    if (!partner_id) return {};
+    return {
+      appointment_partners: {
+        some: { partner_id },
+      },
+    };
+  }
+
   /* ── List ── */
   static async findAll(chapter_id, pagination, filters) {
     const where = {};
@@ -14,6 +29,7 @@ class AppointmentRepository {
     if (filters?.status) where.status = filters.status;
     if (filters?.appointment_type_id) where.appointment_type_id = filters.appointment_type_id;
     if (filters?.investee_id) where.investee_id = filters.investee_id;
+    if (filters?.partner_id) Object.assign(where, this.buildPartnerAccessWhere(filters.partner_id));
 
     if (filters?.month && filters?.year) {
       // Month is 1-12. Construct a Date at the start of the UTC month
@@ -91,6 +107,8 @@ class AppointmentRepository {
       appointment_partner_id: ap.app_partner_id,
       is_present: ap.is_present,
       absent_informed: ap.absent_informed,
+      partner_response_status: ap.partner_response_status || (ap.is_present === null && ap.absent_informed !== null ? (ap.absent_informed ? 'ABSENT' : 'PRESENT') : null),
+      partner_response_at: ap.partner_response_at || ap.modified_at,
       partner_id: ap.partners.partner_id,
       partner_name: ap.partners.partner_name,
       email: ap.partners.email,
@@ -107,6 +125,187 @@ class AppointmentRepository {
     delete formattedRow.appointment_partners;
 
     return formattedRow;
+  }
+
+  static async findNotifications(chapter_id, partner_id) {
+    if (!partner_id) {
+      const supportsPartnerResponse = this.prismaApHasField('partner_response_status');
+      const responseWhere = supportsPartnerResponse
+        ? { partner_response_status: { in: ['PRESENT', 'ABSENT'] } }
+        : {
+            OR: [
+              { is_present: true },
+              { is_present: false, absent_informed: true },
+              { is_present: false, absent_informed: false },
+            ],
+          };
+
+      const rows = await prisma.appointments.findMany({
+        where: {
+          chapter_id,
+          status: 'PENDING',
+          appointment_partners: {
+            some: responseWhere,
+          },
+        },
+        include: {
+          investees: { select: { investee_name: true } },
+          appointment_types: { select: { type_name: true } },
+          appointment_partners: {
+            where: responseWhere,
+            include: {
+              partners: { select: { partner_id: true, partner_name: true, email: true } },
+            },
+            orderBy: { modified_at: 'desc' },
+          },
+        },
+        orderBy: [{ modified_at: 'desc' }],
+      });
+
+      return rows.map((r) => {
+        const row = formatRow(r);
+        const response = r.appointment_partners[0];
+        row.investee_name = r.investees?.investee_name || null;
+        row.appointment_type = r.appointment_types?.type_name || null;
+        row.notification_type = 'PARTNER_RESPONSE';
+        const responseLabel = response
+          ? (response.partner_response_status || (response.is_present ? 'PRESENT' : 'ABSENT'))
+          : 'PRESENT';
+        row.notification_message = response
+          ? `${response.partners.partner_name} informed ${responseLabel}`
+          : 'Partner response updated';
+        row.focus_partner_id = response?.partners?.partner_id || null;
+        row.response_at = response?.modified_at ? formatRow({ modified_at: response.modified_at }).modified_at : null;
+        row.partners = (r.appointment_partners || []).map((ap) => ({
+          partner_id: ap.partners.partner_id,
+          partner_name: ap.partners.partner_name,
+          email: ap.partners.email,
+          partner_response_status: ap.partner_response_status || (ap.is_present === null && ap.absent_informed !== null ? (ap.absent_informed ? 'ABSENT' : 'PRESENT') : null),
+          partner_response_at: ap.partner_response_at || ap.modified_at,
+        }));
+        delete row.investees;
+        delete row.appointment_types;
+        delete row.appointment_partners;
+        return row;
+      });
+    }
+
+    const today = utcToday();
+    const tomorrow = new Date(today);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+
+    const where = {
+      chapter_id,
+      OR: [
+        {
+          status: 'PENDING',
+          occurrence_date: { gte: today, lt: tomorrow },
+        },
+        {
+          status: 'COMPLETED',
+          occurrence_date: { gte: today, lt: tomorrow },
+        },
+      ],
+      ...(partner_id ? this.buildPartnerAccessWhere(partner_id) : {}),
+    };
+
+    const rows = await prisma.appointments.findMany({
+      where,
+      include: {
+        investees: { select: { investee_name: true } },
+        appointment_types: { select: { type_name: true } },
+        appointment_partners: {
+          include: {
+            partners: { select: { partner_id: true, partner_name: true, email: true } },
+          },
+        },
+      },
+      orderBy: [{ occurrence_date: 'desc' }, { start_at: 'desc' }],
+    });
+
+    return rows.map((r) => {
+      const row = formatRow(r);
+      row.investee_name = r.investees?.investee_name || null;
+      row.appointment_type = r.appointment_types?.type_name || null;
+      row.partners = (r.appointment_partners || []).map((ap) => ({
+        partner_id: ap.partners.partner_id,
+        partner_name: ap.partners.partner_name,
+        email: ap.partners.email,
+        is_present: ap.is_present,
+        absent_informed: ap.absent_informed,
+      }));
+      const selfPartner = (row.partners || []).find((partner) => partner.partner_id === partner_id);
+      if (String(r.status || '').toUpperCase() === 'PENDING') {
+        row.notification_type = 'TODAY_SCHEDULED';
+        row.notification_message = 'Meeting scheduled for today.';
+      } else if (selfPartner && selfPartner.is_present === true) {
+        row.notification_type = 'ATTENDANCE_MARKED';
+        row.notification_message = 'You were marked Present.';
+      } else if (selfPartner && selfPartner.is_present === false) {
+        row.notification_type = 'ATTENDANCE_MARKED';
+        row.notification_message = selfPartner.absent_informed === true ? 'You were marked Absent (Informed).' : 'You were marked Absent.';
+      }
+      delete row.investees;
+      delete row.appointment_types;
+      delete row.appointment_partners;
+      return row;
+    });
+  }
+
+  static async findAssigned(chapter_id, partner_id) {
+    const rows = await prisma.appointments.findMany({
+      where: {
+        chapter_id,
+        ...this.buildPartnerAccessWhere(partner_id),
+      },
+      include: {
+        investees: { select: { investee_name: true } },
+      },
+      orderBy: [{ occurrence_date: 'asc' }, { start_at: 'asc' }],
+    });
+
+    return rows.map((r) => {
+      const row = formatRow(r);
+      row.investee_name = r.investees?.investee_name || null;
+      delete row.investees;
+      return row;
+    });
+  }
+
+  static async updatePartnerResponse(appointment_id, partner_id, responseStatus) {
+    const appointment = await this.findByIdWithDetails(appointment_id);
+    if (!appointment) return null;
+
+    if (String(appointment.status || '').toUpperCase() !== 'PENDING') {
+      const error = new Error('Responses are allowed only for pending appointments');
+      error.code = 'VALIDATION';
+      throw error;
+    }
+
+    const assigned = (appointment.partners || []).some((partner) => partner.partner_id === partner_id);
+    if (!assigned) {
+      const error = new Error('You are not assigned to this appointment');
+      error.code = 'FORBIDDEN';
+      throw error;
+    }
+
+    const responseData = {
+      absent_informed: responseStatus === 'ABSENT' ? true : false,
+      modified_at: new Date(),
+    };
+    if (this.prismaApHasField('partner_response_status')) {
+      responseData.partner_response_status = responseStatus;
+    }
+    if (this.prismaApHasField('partner_response_at')) {
+      responseData.partner_response_at = new Date();
+    }
+
+    await prisma.appointment_partners.updateMany({
+      where: { appointment_id, partner_id },
+      data: responseData,
+    });
+
+    return this.findByIdWithDetails(appointment_id);
   }
 
   /**

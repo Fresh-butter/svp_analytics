@@ -28,4 +28,22 @@ function optionalAuth(req, _res, next) {
   next();
 }
 
-module.exports = { authenticate, optionalAuth };
+function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: 'AUTH_MISSING', message: 'Not authenticated' } });
+      return;
+    }
+
+    if (!allowedRoles.includes(req.user.user_type)) {
+      res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You do not have permission to access this resource' } });
+      return;
+    }
+
+    next();
+  };
+}
+
+const requireAdmin = requireRole('ADMIN');
+
+module.exports = { authenticate, optionalAuth, requireRole, requireAdmin };

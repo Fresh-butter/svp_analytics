@@ -55,7 +55,7 @@
           "Auth"
         ],
         "summary": "Login with email and password",
-        "description": "Authenticates a user and returns a JWT token.",
+        "description": "Authenticates an admin or partner user and returns a JWT token. Partner accounts are linked to a partner profile and receive partner-scoped access.",
         "parameters": [
           {
             "name": "authorization",
@@ -84,7 +84,8 @@
                           "type": "string"
                         },
                         "user": {
-                          "type": "object"
+                          "type": "object",
+                          "description": "Authenticated user profile. Partner users include partner_id and partner_name."
                         }
                       }
                     }
@@ -1402,7 +1403,7 @@
           "Appointments"
         ],
         "summary": "List appointments",
-        "description": "Returns appointments for a chapter, paginated by month and year. Defaults to current month/year.",
+        "description": "Returns appointments for a chapter, paginated by month and year. Partner users are automatically scoped to their assigned meetings.",
         "parameters": [
           {
             "name": "authorization",
@@ -1558,7 +1559,8 @@
                     "type": "string",
                     "enum": [
                       "PENDING",
-                      "COMPLETED"
+                      "COMPLETED",
+                      "CANCELLED"
                     ],
                     "example": "PENDING"
                   },
@@ -1575,6 +1577,40 @@
             }
           }
         }
+      }
+    },
+    "/api/appointments/notifications": {
+      "get": {
+        "tags": [
+          "Appointments"
+        ],
+        "summary": "List overdue pending appointments for the current user",
+        "description": "Returns pending appointments in the past that are assigned to the authenticated user. Partners only see meetings assigned to them.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification appointments"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/appointments/{id}": {
@@ -1702,7 +1738,8 @@
                     "type": "string",
                     "enum": [
                       "PENDING",
-                      "COMPLETED"
+                      "COMPLETED",
+                      "CANCELLED"
                     ]
                   },
                   "partners": {
@@ -1837,19 +1874,68 @@
                         },
                         "is_present": {
                           "type": "boolean"
+                        },
+                        "absent_informed": {
+                          "type": "boolean",
+                          "nullable": true
                         }
                       }
                     },
                     "example": [
                       {
                         "partner_id": "550e8400-e29b-41d4-a716-446655440000",
-                        "is_present": true
+                        "is_present": true,
+                        "absent_informed": null
                       },
                       {
                         "partner_id": "660e8400-e29b-41d4-a716-446655440001",
-                        "is_present": false
+                        "is_present": false,
+                        "absent_informed": true
                       }
                     ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/appointments/import": {
+      "post": {
+        "tags": [
+          "Appointments"
+        ],
+        "summary": "Import appointments",
+        "description": "Bulk import appointments (JSON array of rows). Validates uniqueness by name and by date+name.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rows": {
+                    "type": "array"
                   }
                 }
               }
@@ -2633,6 +2719,54 @@
         ]
       }
     },
+    "/api/analytics/export-appointments": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Export detailed appointment rows",
+        "description": "Returns a detailed row-per-partner list for appointments within a date range (YYYY-MM-DD).",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from_date",
+            "in": "query",
+            "required": true,
+            "format": "date",
+            "description": "Start date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "required": true,
+            "format": "date",
+            "description": "End date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/group-types": {
       "get": {
         "tags": [
@@ -2913,6 +3047,122 @@
             "bearerAuth": []
           }
         ]
+      }
+    },
+    "/api/settings/admins": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "example": "any"
+                  },
+                  "error": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/admins/{id}": {
+      "delete": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
       }
     }
   },

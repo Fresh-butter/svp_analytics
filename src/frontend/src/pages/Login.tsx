@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { chapterService } from '../services/chapterService';
 import { authService } from '../services/authService';
-import { Lock, Mail, Building2, ArrowLeft } from 'lucide-react';
+import { Lock, Mail, Building2, ArrowLeft, UserPlus } from 'lucide-react';
 
 interface Chapter {
   chapter_id: string;
@@ -19,10 +19,12 @@ export const LoginPage = () => {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showForgot, setShowForgot] = useState(false);
+  const [mode, setMode] = useState<'LOGIN' | 'FORGOT' | 'ACTIVATE'>('LOGIN');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
-  const [forgotMessage, setForgotMessage] = useState('');
+  const [activateEmail, setActivateEmail] = useState('');
+  const [activateLoading, setActivateLoading] = useState(false);
+  const [infoMessage, setInfoMessage] = useState('');
 
   useEffect(() => {
     if (user) navigate('/', { replace: true });
@@ -76,15 +78,34 @@ export const LoginPage = () => {
   const handleForgotPassword = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    setForgotMessage('');
+    setInfoMessage('');
     setForgotLoading(true);
     try {
       const msg = await authService.forgotPassword(forgotEmail);
-      setForgotMessage(msg);
+      setInfoMessage(msg);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to send reset email');
     } finally {
       setForgotLoading(false);
+    }
+  };
+
+  const handlePartnerActivationRequest = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setInfoMessage('');
+    setActivateLoading(true);
+    try {
+      const result = await authService.requestPartnerActivation({ email: activateEmail, chapter_id: chapterId });
+      setInfoMessage(
+        result.temporary_password
+          ? `${result.message} Temporary password: ${result.temporary_password}`
+          : result.message
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to request partner activation');
+    } finally {
+      setActivateLoading(false);
     }
   };
 
@@ -158,8 +179,16 @@ export const LoginPage = () => {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-text">{showForgot ? 'Reset Password' : 'Welcome back'}</h2>
-            <p className="text-textMuted mt-2">{showForgot ? 'Enter your email to receive a new password' : 'Sign in to your account to continue'}</p>
+            <h2 className="text-2xl font-bold text-text">
+              {mode === 'FORGOT' ? 'Reset Password' : mode === 'ACTIVATE' ? 'Activate Partner Account' : 'Welcome back'}
+            </h2>
+            <p className="text-textMuted mt-2">
+              {mode === 'FORGOT'
+                ? 'Enter your email to receive a new password'
+                : mode === 'ACTIVATE'
+                  ? 'Use your existing partner email to receive an activation link'
+                  : 'Sign in to your account to continue'}
+            </p>
           </div>
 
           {error && (
@@ -171,16 +200,16 @@ export const LoginPage = () => {
             </div>
           )}
 
-          {forgotMessage && (
+          {infoMessage && (
             <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm flex items-center gap-3">
               <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              {forgotMessage}
+              {infoMessage}
             </div>
           )}
 
-          {showForgot ? (
+          {mode === 'FORGOT' ? (
             <form onSubmit={handleForgotPassword} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-text mb-2">Email address</label>
@@ -213,7 +242,60 @@ export const LoginPage = () => {
               </button>
               <button
                 type="button"
-                onClick={() => { setShowForgot(false); setError(''); setForgotMessage(''); }}
+                onClick={() => { setMode('LOGIN'); setError(''); setInfoMessage(''); }}
+                className="w-full py-2 text-sm text-primary hover:text-primaryHover font-medium flex items-center justify-center gap-1 transition-colors"
+              >
+                <ArrowLeft size={16} /> Back to Sign In
+              </button>
+            </form>
+          ) : mode === 'ACTIVATE' ? (
+            <form onSubmit={handlePartnerActivationRequest} className="space-y-5">
+              {chapters.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-text mb-2">Chapter</label>
+                  <div className="relative">
+                    <Building2 size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" />
+                    <select
+                      value={chapterId}
+                      onChange={(e) => setChapterId(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-background border border-surfaceHighlight rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                    >
+                      {chapters.map((ch) => (
+                        <option key={ch.chapter_id} value={ch.chapter_id}>
+                          {ch.chapter_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">Partner Email</label>
+                <div className="relative">
+                  <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" />
+                  <input
+                    type="email"
+                    value={activateEmail}
+                    onChange={(e) => setActivateEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-background border border-surfaceHighlight rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                    placeholder="partner@svp.org"
+                    required
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={activateLoading || !chapterId}
+                className="w-full py-3 px-4 bg-primary hover:bg-primaryHover text-white font-semibold rounded-lg transition-all disabled:opacity-50 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]"
+              >
+                {activateLoading ? 'Sending Activation Link...' : 'Send Activation Link'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setMode('LOGIN'); setError(''); setInfoMessage(''); }}
                 className="w-full py-2 text-sm text-primary hover:text-primaryHover font-medium flex items-center justify-center gap-1 transition-colors"
               >
                 <ArrowLeft size={16} /> Back to Sign In
@@ -295,10 +377,19 @@ export const LoginPage = () => {
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => { setShowForgot(true); setError(''); }}
+                onClick={() => { setMode('FORGOT'); setError(''); setInfoMessage(''); }}
                 className="text-sm text-primary hover:text-primaryHover font-medium transition-colors"
               >
                 Forgot Password?
+              </button>
+            </div>
+            <div className="text-center -mt-2">
+              <button
+                type="button"
+                onClick={() => { setMode('ACTIVATE'); setError(''); setInfoMessage(''); }}
+                className="text-sm text-primary hover:text-primaryHover font-medium transition-colors inline-flex items-center gap-1"
+              >
+                <UserPlus size={14} /> Activate Partner Account
               </button>
             </div>
           </form>

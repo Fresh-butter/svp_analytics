@@ -6,6 +6,21 @@ const SORT_COLUMNS = ['partner_name', 'email', 'start_date', 'end_date', 'create
 class PartnerRepository {
   static allowedSortColumns = SORT_COLUMNS;
 
+  static async findByEmail(email, chapter_id) {
+    const where = { email };
+    if (chapter_id) where.chapter_id = chapter_id;
+    const row = await prisma.partners.findFirst({
+      where,
+      select: {
+        partner_id: true,
+        chapter_id: true,
+        partner_name: true,
+        email: true,
+      },
+    });
+    return formatRow(row, { computeActive: true });
+  }
+
   static async findAll(chapter_id, filters) {
     const where = {};
 

@@ -17,6 +17,7 @@ type Props = {
   onExportPDF: () => void;
   onOpenAddEvent: () => void;
   onOpenAddRecurring: () => void;
+  canEdit?: boolean;
 };
 
 export const CalendarToolbar = ({
@@ -33,6 +34,7 @@ export const CalendarToolbar = ({
   onExportPDF,
   onOpenAddEvent,
   onOpenAddRecurring,
+  canEdit = true,
 }: Props) => {
   const isPastDateSelected = isBefore(selectedDate, startOfDay(new Date()));
 
@@ -106,23 +108,27 @@ export const CalendarToolbar = ({
             )}
           </div>
 
-          <button
-            onClick={onOpenAddEvent}
-            disabled={isPastDateSelected}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-shadow shadow-lg shadow-primary/20 ${isPastDateSelected ? 'bg-primary/40 text-white/60 cursor-not-allowed' : 'bg-primary hover:bg-primaryHover text-white'}`}
-          >
-            <Plus size={18} />
-            <span>Event</span>
-          </button>
+          {canEdit && (
+            <>
+              <button
+                onClick={onOpenAddEvent}
+                disabled={isPastDateSelected}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md transition-shadow shadow-lg shadow-primary/20 ${isPastDateSelected ? 'bg-primary/40 text-white/60 cursor-not-allowed' : 'bg-primary hover:bg-primaryHover text-white'}`}
+              >
+                <Plus size={18} />
+                <span>Event</span>
+              </button>
 
-          <button
-            onClick={onOpenAddRecurring}
-            disabled={isPastDateSelected}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-shadow ${isPastDateSelected ? 'bg-surfaceHighlight/40 text-textMuted/60 cursor-not-allowed' : 'bg-surfaceHighlight hover:bg-surfaceHighlight/80 text-text'}`}
-          >
-            <Repeat size={18} />
-            <span>Recurring</span>
-          </button>
+              <button
+                onClick={onOpenAddRecurring}
+                disabled={isPastDateSelected}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md transition-shadow ${isPastDateSelected ? 'bg-surfaceHighlight/40 text-textMuted/60 cursor-not-allowed' : 'bg-surfaceHighlight hover:bg-surfaceHighlight/80 text-text'}`}
+              >
+                <Repeat size={18} />
+                <span>Recurring</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

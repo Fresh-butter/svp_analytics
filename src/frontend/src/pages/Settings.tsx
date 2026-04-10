@@ -6,6 +6,7 @@ import { Card, Modal, Button, Input } from '../components/Common';
 import { LookupManagerModal } from '../components/LookupManagerModal';
 import { lookupService } from '../services/lookupService';
 import { AppointmentType, GroupType } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 type Admin = {
   user_id: string;
@@ -15,6 +16,8 @@ type Admin = {
 };
 
 export const SettingsPage = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.user_type === 'ADMIN';
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [groupTypes, setGroupTypes] = useState<GroupType[]>([]);
@@ -57,8 +60,10 @@ export const SettingsPage = () => {
   };
 
   useEffect(() => {
-    void fetchAdmins();
-    void fetchLookupTypes();
+    if (isAdmin) {
+      void fetchAdmins();
+      void fetchLookupTypes();
+    }
   }, []);
 
   const handleAdd = async (e?: React.FormEvent) => {
@@ -89,81 +94,85 @@ export const SettingsPage = () => {
     <div className="space-y-6 w-full">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold text-text mb-2">Settings</h2>
-        <Button onClick={() => setIsOpen(true)}>Add Admin</Button>
+        {isAdmin && <Button onClick={() => setIsOpen(true)}>Add Admin</Button>}
       </div>
 
-      <Card>
-        <div className="p-6">
-          <h3 className="text-lg font-medium text-textMuted mb-4">Chapter Admins</h3>
-          {loading ? (
-            <p className="text-textMuted">Loading…</p>
-          ) : admins.length === 0 ? (
-            <p className="text-textMuted italic">No admins found for your chapter.</p>
-          ) : (
-            <div className="space-y-3">
-              {admins.map((a) => (
-                <div key={a.user_id} className="flex items-center justify-between p-3 bg-background border border-surfaceHighlight rounded-lg">
-                  <div>
-                    <div className="font-medium text-text">{a.name}</div>
-                    <div className="text-sm text-textMuted">{a.email}</div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="ghost"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(a.email);
-                          setCopiedId(a.user_id);
-                          setTimeout(() => setCopiedId((id) => (id === a.user_id ? null : id)), 2000);
-                        } catch (err) {
-                          console.error('Clipboard write failed', err);
-                          alert('Failed to copy to clipboard');
-                        }
-                      }}
-                    >
-                      {copiedId === a.user_id ? 'Copied' : 'Copy Email'}
-                    </Button>
-                    <Button variant="danger" onClick={() => handleRemove(a.user_id)}>Remove</Button>
-                  </div>
+      {isAdmin && (
+        <>
+          <Card>
+            <div className="p-6">
+              <h3 className="text-lg font-medium text-textMuted mb-4">Chapter Admins</h3>
+              {loading ? (
+                <p className="text-textMuted">Loading…</p>
+              ) : admins.length === 0 ? (
+                <p className="text-textMuted italic">No admins found for your chapter.</p>
+              ) : (
+                <div className="space-y-3">
+                  {admins.map((a) => (
+                    <div key={a.user_id} className="flex items-center justify-between p-3 bg-background border border-surfaceHighlight rounded-lg">
+                      <div>
+                        <div className="font-medium text-text">{a.name}</div>
+                        <div className="text-sm text-textMuted">{a.email}</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          variant="ghost"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(a.email);
+                              setCopiedId(a.user_id);
+                              setTimeout(() => setCopiedId((id) => (id === a.user_id ? null : id)), 2000);
+                            } catch (err) {
+                              console.error('Clipboard write failed', err);
+                              alert('Failed to copy to clipboard');
+                            }
+                          }}
+                        >
+                          {copiedId === a.user_id ? 'Copied' : 'Copy Email'}
+                        </Button>
+                        <Button variant="danger" onClick={() => handleRemove(a.user_id)}>Remove</Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-      </Card>
+          </Card>
 
-      <Card>
-        <div className="p-6 space-y-4">
-          <h3 className="text-lg font-medium text-textMuted">Type Management</h3>
-          <p className="text-sm text-textMuted">Manage appointment and group types from Settings.</p>
+          <Card>
+            <div className="p-6 space-y-4">
+              <h3 className="text-lg font-medium text-textMuted">Type Management</h3>
+              <p className="text-sm text-textMuted">Manage appointment and group types from Settings.</p>
 
-          {loadingLookups ? (
-            <p className="text-textMuted">Loading types...</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setIsAppointmentTypeModalOpen(true)}
-                className="text-left p-4 bg-background border border-surfaceHighlight rounded-lg hover:border-primary/50 transition-colors"
-              >
-                <div className="font-medium text-text">Appointment Types</div>
-                <div className="text-sm text-textMuted mt-1">{appointmentTypes.length} type{appointmentTypes.length !== 1 ? 's' : ''}</div>
-              </button>
+              {loadingLookups ? (
+                <p className="text-textMuted">Loading types...</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAppointmentTypeModalOpen(true)}
+                    className="text-left p-4 bg-background border border-surfaceHighlight rounded-lg hover:border-primary/50 transition-colors"
+                  >
+                    <div className="font-medium text-text">Appointment Types</div>
+                    <div className="text-sm text-textMuted mt-1">{appointmentTypes.length} type{appointmentTypes.length !== 1 ? 's' : ''}</div>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => setIsGroupTypeModalOpen(true)}
-                className="text-left p-4 bg-background border border-surfaceHighlight rounded-lg hover:border-primary/50 transition-colors"
-              >
-                <div className="font-medium text-text">Group Types</div>
-                <div className="text-sm text-textMuted mt-1">{groupTypes.length} type{groupTypes.length !== 1 ? 's' : ''}</div>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsGroupTypeModalOpen(true)}
+                    className="text-left p-4 bg-background border border-surfaceHighlight rounded-lg hover:border-primary/50 transition-colors"
+                  >
+                    <div className="font-medium text-text">Group Types</div>
+                    <div className="text-sm text-textMuted mt-1">{groupTypes.length} type{groupTypes.length !== 1 ? 's' : ''}</div>
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </Card>
+          </Card>
+        </>
+      )}
 
-      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Add Admin">
+      <Modal isOpen={isOpen && isAdmin} onClose={() => setIsOpen(false)} title="Add Admin">
         <form onSubmit={handleAdd} className="space-y-4">
           <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Jane Doe" />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="admin@example.org" />
@@ -176,7 +185,7 @@ export const SettingsPage = () => {
       </Modal>
 
       <LookupManagerModal
-        isOpen={isAppointmentTypeModalOpen}
+        isOpen={isAppointmentTypeModalOpen && isAdmin}
         onClose={() => setIsAppointmentTypeModalOpen(false)}
         title="Manage Appointment Types"
         addLabel="New Appointment Type"
@@ -193,7 +202,7 @@ export const SettingsPage = () => {
       />
 
       <LookupManagerModal
-        isOpen={isGroupTypeModalOpen}
+        isOpen={isGroupTypeModalOpen && isAdmin}
         onClose={() => setIsGroupTypeModalOpen(false)}
         title="Manage Group Types"
         addLabel="New Group Type"

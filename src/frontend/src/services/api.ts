@@ -38,7 +38,7 @@ async function request<T>(
 
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
-    const text = await res.text();
+    await res.text();
     if (!res.ok) {
       throw new Error(`Request failed (${res.status})`);
     }

@@ -9,8 +9,9 @@
     "swagger": "node swagger.js",
     "setup": "node scripts/setup.js",
     "db:seed:admins": "node scripts/seed-admin-chapters.js",
+    "db:seed:partners": "node scripts/seed-partner-users.js",
     "db:seed:dummy": "node scripts/seed-dummy-data.js",
-    "db:seed": "npm run db:seed:admins && npm run db:seed:dummy"
+    "db:seed": "npm run db:seed:admins && npm run db:seed:dummy && npm run db:seed:partners"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.4.2",

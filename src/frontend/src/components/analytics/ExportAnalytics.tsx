@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Button } from '../Common';
 import { Download } from 'lucide-react';
 import { exportJsonToCsv, exportTableToPdf } from '../../utils/exporters';
 import { exportAppointmentRows } from '../../services/analyticsService';
@@ -9,8 +8,8 @@ export const ExportAnalytics = () => {
   const defaultTo = today.toISOString().slice(0, 10);
   const defaultFrom = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
 
-  const [fromDate, setFromDate] = useState(defaultFrom);
-  const [toDate, setToDate] = useState(defaultTo);
+  const [fromDate] = useState(defaultFrom);
+  const [toDate] = useState(defaultTo);
   const [loading, setLoading] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
 
@@ -94,12 +93,14 @@ export const ExportAnalytics = () => {
           <div className="absolute right-0 mt-2 w-48 bg-surface border border-surfaceHighlight rounded-lg shadow-lg z-10 py-1">
             <button
               onClick={handleExportExcel}
+              disabled={loading}
               className="w-full text-left px-4 py-2 text-sm text-text hover:bg-surfaceHighlight transition-colors"
             >
-              Export as Excel
+              {loading ? 'Exporting...' : 'Export as Excel'}
             </button>
             <button
               onClick={handleExportPDF}
+              disabled={loading}
               className="w-full text-left px-4 py-2 text-sm text-text hover:bg-surfaceHighlight transition-colors"
             >
               Export as PDF

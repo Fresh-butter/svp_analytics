@@ -1,10 +1,10 @@
 const { Router } = require('express');
 const { PartnerController } = require('../controllers');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'List all partners'
   // #swagger.description = 'Returns partners for a chapter. Supports filtering by active status and primary flag.'
@@ -31,7 +31,7 @@ router.get('/', authenticate, (req, res) => {
   return PartnerController.list(req, res);
 });
 
-router.get('/:id', authenticate, (req, res) => {
+router.get('/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'Get partner by ID'
   // #swagger.description = 'Returns a partner with groups and appointment details. Optionally filtered by month and year.'
@@ -59,7 +59,7 @@ router.get('/:id', authenticate, (req, res) => {
   return PartnerController.get(req, res);
 });
 
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'Create a new partner'
   // #swagger.description = 'Creates a new partner. Requires chapter_id, partner_name, and start_date.'
@@ -90,7 +90,7 @@ router.post('/', authenticate, (req, res) => {
   return PartnerController.create(req, res);
 });
 
-router.put('/:id', authenticate, (req, res) => {
+router.put('/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'Update a partner'
   // #swagger.description = 'Update partner details by ID.'
@@ -125,7 +125,7 @@ router.put('/:id', authenticate, (req, res) => {
   return PartnerController.update(req, res);
 });
 
-router.delete('/:id', authenticate, (req, res) => {
+router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'Delete a partner'
   // #swagger.description = 'Deletes a partner. Blocked if referenced by other entities.'

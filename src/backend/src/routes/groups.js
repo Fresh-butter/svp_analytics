@@ -1,10 +1,10 @@
 const { Router } = require('express');
 const { GroupController } = require('../controllers');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, requireAdmin, (req, res) => {
     // #swagger.tags = ['Groups']
     // #swagger.summary = 'List all groups'
     // #swagger.description = 'Returns groups for a chapter. Supports filtering by active status and group type.'
@@ -31,7 +31,7 @@ router.get('/', authenticate, (req, res) => {
     return GroupController.list(req, res);
 });
 
-router.get('/:id', authenticate, (req, res) => {
+router.get('/:id', authenticate, requireAdmin, (req, res) => {
     // #swagger.tags = ['Groups']
     // #swagger.summary = 'Get group by ID'
     // #swagger.description = 'Returns a group with its member partners.'
@@ -49,7 +49,7 @@ router.get('/:id', authenticate, (req, res) => {
     return GroupController.get(req, res);
 });
 
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, requireAdmin, (req, res) => {
     // #swagger.tags = ['Groups']
     // #swagger.summary = 'Create a new group'
     // #swagger.description = 'Creates a new group. Requires chapter_id, group_name, group_type_id, and start_date.'
@@ -80,7 +80,7 @@ router.post('/', authenticate, (req, res) => {
     return GroupController.create(req, res);
 });
 
-router.put('/:id', authenticate, (req, res) => {
+router.put('/:id', authenticate, requireAdmin, (req, res) => {
     // #swagger.tags = ['Groups']
     // #swagger.summary = 'Update a group'
     // #swagger.description = 'Update group metadata by ID.'
@@ -117,7 +117,7 @@ router.put('/:id', authenticate, (req, res) => {
     return GroupController.update(req, res);
 });
 
-router.delete('/:id', authenticate, (req, res) => {
+router.delete('/:id', authenticate, requireAdmin, (req, res) => {
     // #swagger.tags = ['Groups']
     // #swagger.summary = 'Delete a group'
     // #swagger.description = 'Deletes a group. Blocked if referenced in recurring appointments.'
@@ -136,7 +136,7 @@ router.delete('/:id', authenticate, (req, res) => {
     return GroupController.remove(req, res);
 });
 
-router.put('/:id/partners', authenticate, (req, res) => {
+router.put('/:id/partners', authenticate, requireAdmin, (req, res) => {
     // #swagger.tags = ['Groups']
     // #swagger.summary = 'Update group partners'
     // #swagger.description = 'Overwrites the list of partners assigned to a group.'
