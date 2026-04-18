@@ -6,6 +6,49 @@ const SORT_COLUMNS = ['group_name', 'group_type_id', 'start_date', 'end_date', '
 class GroupRepository {
   static allowedSortColumns = SORT_COLUMNS;
 
+  static async validateAndPrepareMembers(chapter_id, members) {
+    if (!Array.isArray(members)) {
+      return { error: 'members must be an array' };
+    }
+
+    const seen = new Set();
+    for (const m of members) {
+      if (!m?.partner_id) return { error: 'Each member must include partner_id' };
+      if (!m?.start_date) return { error: `Each member must include start_date (missing for partner_id: ${m.partner_id})` };
+      if (seen.has(m.partner_id)) return { error: `Duplicate partner_id in members payload: ${m.partner_id}` };
+      seen.add(m.partner_id);
+    }
+
+    const partnerIds = members.map((m) => m.partner_id);
+    const dbPartners = await prisma.partners.findMany({
+      where: { partner_id: { in: partnerIds }, chapter_id },
+      select: { partner_id: true, partner_name: true },
+    });
+
+    const partnerMap = new Map();
+    dbPartners.forEach((p) => partnerMap.set(p.partner_id, p));
+
+    for (const m of members) {
+      const dbPartner = partnerMap.get(m.partner_id);
+      if (!dbPartner) return { error: `Partner ${m.partner_id} not found in chapter` };
+
+      const sd = new Date(m.start_date).getTime();
+      const ed = m.end_date ? new Date(m.end_date).getTime() : new Date('9999-12-31').getTime();
+      if (sd > ed) {
+        return { error: `Invalid dates for partner ${dbPartner.partner_name}. start_date cannot be after end_date.` };
+      }
+    }
+
+    const prepared = members.map((m) => ({
+      chapter_id,
+      partner_id: m.partner_id,
+      start_date: parseLocalDate(m.start_date),
+      end_date: m.end_date ? parseLocalDate(m.end_date) : null,
+    }));
+
+    return { data: prepared };
+  }
+
   static async findAll(chapter_id, filters) {
     const where = {};
 
@@ -46,7 +89,19 @@ class GroupRepository {
       where: { group_id: id },
       include: {
         investees: {
-          select: { investee_name: true }
+          select: {
+            investee_id: true,
+            investee_name: true,
+            email: true,
+            start_date: true,
+            end_date: true,
+          }
+        },
+        group_types: {
+          select: {
+            group_type_id: true,
+            type_name: true,
+          }
         },
         group_partners: {
           include: {
@@ -56,7 +111,22 @@ class GroupRepository {
           },
           orderBy: { start_date: 'asc' },
         },
-        recurring_appointments: true,
+        recurring_appointments: {
+          include: {
+            appointment_types: {
+              select: { appointment_type_id: true, type_name: true },
+            },
+            investees: {
+              select: {
+                investee_id: true,
+                investee_name: true,
+                email: true,
+                start_date: true,
+                end_date: true,
+              }
+            },
+          }
+        },
       }
     });
     if (!group) return null;
@@ -82,34 +152,81 @@ class GroupRepository {
       };
     });
 
-    // Format recurring_appointments to standard structure
-    formattedGroup.recurring_appointments = group.recurring_appointments.map(ra => formatRow(ra));
+    formattedGroup.group_type = group.group_types ? formatRow(group.group_types) : null;
+
+    // Keep investee_name for compatibility while exposing full investee details.
+    formattedGroup.investee = group.investees ? formatRow(group.investees) : null;
+
+    // Add nested recurring appointment linked entities.
+    formattedGroup.recurring_appointments = group.recurring_appointments.map(ra => {
+      const formatted = formatRow(ra);
+      formatted.appointment_type = ra.appointment_types ? formatRow(ra.appointment_types) : null;
+      formatted.investee = ra.investees ? formatRow(ra.investees) : null;
+      delete formatted.appointment_types;
+      delete formatted.investees;
+      return formatted;
+    });
 
     // Clean up raw nested objects
     delete formattedGroup.group_partners;
     delete formattedGroup.investees;
-    if (group.investees) {
-      formattedGroup.investee_name = group.investees.investee_name;
-    }
+    delete formattedGroup.group_types;
 
     return formattedGroup;
   }
 
   static async create(data) {
-    const row = await prisma.groups.create({
-      data: {
-        chapter_id: data.chapter_id,
-        investee_id: data.investee_id || null,
-        group_name: data.group_name,
-        group_type_id: data.group_type_id,
-        start_date: parseLocalDate(data.start_date),
-        end_date: data.end_date ? parseLocalDate(data.end_date) : null,
-      },
+    if (!data.start_date) {
+      return { error: 'start_date is required' };
+    }
+
+    const members = Array.isArray(data.members) ? data.members : null;
+
+    let preparedMembers = null;
+    if (members) {
+      const prepared = await this.validateAndPrepareMembers(data.chapter_id, members);
+      if (prepared.error) return { error: prepared.error };
+      preparedMembers = prepared.data;
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      const group = await tx.groups.create({
+        data: {
+          chapter_id: data.chapter_id,
+          investee_id: data.investee_id || null,
+          group_name: data.group_name,
+          group_type_id: data.group_type_id,
+          start_date: parseLocalDate(data.start_date),
+          end_date: data.end_date ? parseLocalDate(data.end_date) : null,
+        },
+      });
+
+      if (preparedMembers && preparedMembers.length > 0) {
+        await tx.group_partners.createMany({
+          data: preparedMembers.map((m) => ({ ...m, group_id: group.group_id })),
+        });
+      }
+
+      return group;
     });
-    return formatRow(row, { computeActive: true });
+
+    return this.findByIdWithDetails(created.group_id);
   }
 
-  static async update(id, data) {
+  static async update(id, data, chapter_id) {
+    if (data.start_date !== undefined && !data.start_date) {
+      return { error: 'start_date cannot be empty when provided' };
+    }
+
+    const members = Array.isArray(data.members) ? data.members : undefined;
+
+    let preparedMembers = null;
+    if (members !== undefined) {
+      const prepared = await this.validateAndPrepareMembers(chapter_id, members);
+      if (prepared.error) return { error: prepared.error };
+      preparedMembers = prepared.data;
+    }
+
     const updateData = {};
 
     if (data.group_name !== undefined) updateData.group_name = data.group_name;
@@ -118,43 +235,36 @@ class GroupRepository {
     if (data.start_date !== undefined) updateData.start_date = parseLocalDate(data.start_date);
     if (data.end_date !== undefined) updateData.end_date = data.end_date ? parseLocalDate(data.end_date) : null;
 
-    if (Object.keys(updateData).length === 0) return this.findById(id);
-
-    // Validate date bounds against existing group partners if dates are changing
-    if (updateData.start_date || updateData.end_date !== undefined) {
-      const currentGroup = await prisma.groups.findUnique({
-        where: { group_id: id },
-        select: { start_date: true, end_date: true }
-      });
-
-      if (!currentGroup) return null;
-
-      const newSd = updateData.start_date ? new Date(updateData.start_date).getTime() : new Date(currentGroup.start_date).getTime();
-      const newEd = updateData.end_date !== undefined
-        ? (updateData.end_date ? new Date(updateData.end_date).getTime() : new Date('9999-12-31').getTime())
-        : (currentGroup.end_date ? new Date(currentGroup.end_date).getTime() : new Date('9999-12-31').getTime());
-
-      const groupPartners = await prisma.group_partners.findMany({
-        where: { group_id: id },
-        select: { start_date: true, end_date: true, partners: { select: { partner_name: true } } }
-      });
-
-      for (const gp of groupPartners) {
-        const gpSd = new Date(gp.start_date).getTime();
-        const gpEd = gp.end_date ? new Date(gp.end_date).getTime() : new Date('9999-12-31').getTime();
-
-        if (newSd > gpSd || newEd < gpEd) {
-          return { error: `Cannot update group dates: Group dates must encompass partner ${gp.partners.partner_name}'s membership period.` };
-        }
-      }
-    }
+    const hasMetadataUpdate = Object.keys(updateData).length > 0;
+    const hasMembersUpdate = members !== undefined;
+    if (!hasMetadataUpdate && !hasMembersUpdate) return this.findById(id);
 
     try {
-      const row = await prisma.groups.update({
-        where: { group_id: id },
-        data: updateData,
+      await prisma.$transaction(async (tx) => {
+        if (hasMetadataUpdate) {
+          await tx.groups.update({
+            where: { group_id: id },
+            data: updateData,
+          });
+        } else {
+          const group = await tx.groups.findUnique({ where: { group_id: id }, select: { group_id: true } });
+          if (!group) {
+            const err = new Error('Group not found');
+            err.code = 'P2025';
+            throw err;
+          }
+        }
+
+        if (hasMembersUpdate) {
+          await tx.group_partners.deleteMany({ where: { group_id: id } });
+          if (preparedMembers.length > 0) {
+            await tx.group_partners.createMany({
+              data: preparedMembers.map((m) => ({ ...m, group_id: id })),
+            });
+          }
+        }
       });
-      return formatRow(row, { computeActive: true });
+      return this.findByIdWithDetails(id);
     } catch (e) {
       if (e.code === 'P2025') return null;
       throw e;
@@ -167,66 +277,29 @@ class GroupRepository {
    * Syncs the entire partner list for a group.
    * `partners` should be an array of objects: { partner_id, start_date, end_date }
    */
-  static async syncPartners(group_id, chapter_id, partners) {
-    if (!partners || !Array.isArray(partners)) return { success: true };
+  static async syncMembers(group_id, chapter_id, members) {
+    if (!members || !Array.isArray(members)) return { error: 'members must be an array' };
 
     const group = await prisma.groups.findUnique({
       where: { group_id },
-      select: { start_date: true, end_date: true }
+      select: { group_id: true }
     });
     if (!group) return { error: 'Group not found' };
 
-    const groupSd = new Date(group.start_date).getTime();
-    const groupEd = group.end_date ? new Date(group.end_date).getTime() : new Date('9999-12-31').getTime();
-
-    // Fetch all partner boundaries to enforce validation rules
-    const partnerIds = partners.map(p => p.partner_id);
-    const dbPartners = await prisma.partners.findMany({
-      where: { partner_id: { in: partnerIds } },
-      select: { partner_id: true, start_date: true, end_date: true, partner_name: true }
-    });
-
-    const partnerMap = new Map();
-    dbPartners.forEach(p => partnerMap.set(p.partner_id, p));
-
-    // Validate dates: MAX(partner.start_date, group.start_date) <= gp.start_date <= COALESCE(gp.end_date, '9999-12-31') <= MIN(partner.end_date, group.end_date)
-    for (const p of partners) {
-      const dbPartner = partnerMap.get(p.partner_id);
-      if (!dbPartner) return { error: `Partner ${p.partner_id} not found` };
-
-      const gpSd = p.start_date ? new Date(p.start_date).getTime() : new Date().getTime();
-      const gpEd = p.end_date ? new Date(p.end_date).getTime() : new Date('9999-12-31').getTime();
-
-      const pSd = new Date(dbPartner.start_date).getTime();
-      const pEd = dbPartner.end_date ? new Date(dbPartner.end_date).getTime() : new Date('9999-12-31').getTime();
-
-      const minAllowedSd = Math.max(pSd, groupSd);
-      const maxAllowedEd = Math.min(pEd, groupEd);
-
-      if (gpSd < minAllowedSd || gpEd > maxAllowedEd || gpSd > gpEd) {
-        return { error: `Invalid dates for partner ${dbPartner.partner_name}. Dates must be within partner and group active periods.` };
-      }
-    }
+    const prepared = await this.validateAndPrepareMembers(chapter_id, members);
+    if (prepared.error) return { error: prepared.error };
 
     // Execute sync inside transaction to ensure atomic replacement
     await prisma.$transaction(async (tx) => {
-      // 1. Delete all current partners
+      // 1. Delete all current members
       await tx.group_partners.deleteMany({
         where: { group_id },
       });
 
-      // 2. Insert mapped partner data
-      if (partners.length > 0) {
-        const createData = partners.map(p => ({
-          chapter_id,
-          group_id,
-          partner_id: p.partner_id,
-          start_date: parseLocalDate(p.start_date || new Date().toISOString().split('T')[0]),
-          end_date: p.end_date ? parseLocalDate(p.end_date) : null,
-        }));
-
+      // 2. Insert mapped member data
+      if (prepared.data.length > 0) {
         await tx.group_partners.createMany({
-          data: createData,
+          data: prepared.data.map((m) => ({ ...m, group_id })),
         });
       }
     });

@@ -1,6 +1,7 @@
 const { prisma } = require('../config/prisma');
 const { formatRow } = require('../utils/helpers');
 const bcrypt = require('bcryptjs');
+const { validatePasswordStrength, passwordStrengthMessage } = require('../utils/passwordPolicy');
 
 class UserRepository {
   static async findByEmail(email, chapter_id) {
@@ -18,6 +19,9 @@ class UserRepository {
   }
 
   static async create(data) {
+    if (!validatePasswordStrength(data.password)) {
+      throw new Error(passwordStrengthMessage());
+    }
     const hash = await bcrypt.hash(data.password, 12);
     const row = await prisma.users.create({
       data: {
@@ -37,6 +41,9 @@ class UserRepository {
   }
 
   static async updatePassword(userId, newPassword) {
+    if (!validatePasswordStrength(newPassword)) {
+      throw new Error(passwordStrengthMessage());
+    }
     const hash = await bcrypt.hash(newPassword, 12);
     const row = await prisma.users.update({
       where: { user_id: userId },

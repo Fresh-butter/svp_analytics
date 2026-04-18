@@ -1,14 +1,13 @@
 const { InvesteeRepository } = require('../repositories');
+const { requireChapterIdFromToken, validateDateRange, validationError, parseMonthYear } = require('../utils/controllerHelpers');
 
 class InvesteeController {
-  /** GET /investees — list without pagination */
+  /** GET /investees — list without pagination or filtering */
   static async list(req, res) {
     try {
-      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
-      const filters = {
-        active: req.query.active === 'true' ? true : req.query.active === 'false' ? false : undefined,
-      };
-      const { rows } = await InvesteeRepository.findAll(chapter_id, filters);
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
+      const { rows } = await InvesteeRepository.findAll(chapter_id);
       res.json({
         success: true, data: rows,
       });
@@ -18,12 +17,12 @@ class InvesteeController {
     }
   }
 
-  /** GET /investees/:id — with groups and appointments details */
+  /** GET /investees/:id — with groups and upcoming appointment details */
   static async get(req, res) {
     try {
-      // Pass month and year if provided in query
-      const { month, year } = req.query;
-      const investee = await InvesteeRepository.findByIdWithDetails(req.params.id, month, year);
+      const monthYear = parseMonthYear(req.query, res);
+      if (!monthYear) return;
+      const investee = await InvesteeRepository.findByIdWithDetails(req.params.id, monthYear);
       if (!investee) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Investee not found' } }); return; }
       res.json({ success: true, data: investee });
     } catch (err) {
@@ -35,16 +34,15 @@ class InvesteeController {
   /** POST /investees — create new investee */
   static async create(req, res) {
     try {
-      const { chapter_id, investee_name, email, start_date, end_date } = req.body;
-      if (!chapter_id || !investee_name || !email || !start_date) {
-        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id, investee_name, email, and start_date are required' } });
+      const chapter_id = requireChapterIdFromToken(req, res);
+      const { investee_name, email, start_date, end_date } = req.body;
+      if (!chapter_id) return;
+      if (!investee_name || !email || !start_date) {
+        validationError(res, 'investee_name, email, and start_date are required');
         return;
       }
-      if (end_date && new Date(end_date) < new Date(start_date)) {
-        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
-        return;
-      }
-      const investee = await InvesteeRepository.create(req.body);
+      if (!validateDateRange(res, start_date, end_date)) return;
+      const investee = await InvesteeRepository.create({ ...req.body, chapter_id });
       res.status(201).json({ success: true, data: investee });
     } catch (err) {
       console.error('Create investee error:', err);
@@ -56,10 +54,7 @@ class InvesteeController {
   static async update(req, res) {
     try {
       const { start_date, end_date } = req.body;
-      if (start_date && end_date && new Date(end_date) < new Date(start_date)) {
-        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
-        return;
-      }
+      if (!validateDateRange(res, start_date, end_date)) return;
       const investee = await InvesteeRepository.update(req.params.id, req.body);
       if (!investee) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Investee not found' } }); return; }
       res.json({ success: true, data: investee });

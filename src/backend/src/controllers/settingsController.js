@@ -1,4 +1,5 @@
 const { UserRepository } = require('../repositories');
+const { validatePasswordStrength, passwordStrengthMessage } = require('../utils/passwordPolicy');
 
 class SettingsController {
   /** GET /settings/admins — list admins for current user's chapter */
@@ -26,6 +27,9 @@ class SettingsController {
       const { name, email, password } = req.body;
       if (!name || !email || !password) {
         return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'name, email and password are required' } });
+      }
+      if (!validatePasswordStrength(password)) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: passwordStrengthMessage() } });
       }
 
       // Create user as ADMIN within same chapter

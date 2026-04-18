@@ -1,12 +1,13 @@
 const { prisma } = require('../config/prisma');
 const { formatRow } = require('../utils/helpers');
+const { requireChapterIdFromToken } = require('../utils/controllerHelpers');
 
 class AnalyticsController {
   /**
    * GET /analytics/attendance-by-partner
    * Returns partner engagement stats: meetings attended, hours spent, last meeting date
    * Query params:
-   *   - chapter_id: UUID (defaults to authenticated user's chapter)
+    *   - chapter_id: from authenticated user's token
    *   - from_month: YYYY-MM
    *   - to_month: YYYY-MM
    *   - investee_id?: UUID (optional filter)
@@ -14,7 +15,8 @@ class AnalyticsController {
    */
   static async attendanceByPartner(req, res) {
     try {
-      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
       const from_month = req.query.from_month; // YYYY-MM
       const to_month = req.query.to_month;
       const investee_id = req.query.investee_id;
@@ -53,16 +55,17 @@ class AnalyticsController {
       // Aggregate by partner — track attended and accepted (present + absent)
       const partnerMap = new Map();
       for (const appt of appointments) {
-        const duration = appt.duration_minutes || this.calculateDuration(appt.start_at, appt.end_at);
+        const duration = this.getEffectiveDuration(appt);
         const investeeName = appt.investees?.investee_name || 'General';
 
         for (const ap of appt.appointment_partners) {
           const pid = ap.partners.partner_id;
-          const isPresent = ap.is_present === true;
+          const isPresent = ap.attendance_status === 'PRESENT';
+          const isAccepted = ap.attendance_status !== 'PENDING';
 
           if (partnerMap.has(pid)) {
             const existing = partnerMap.get(pid);
-            existing.meetings_accepted++;
+            if (isAccepted) existing.meetings_accepted++;
             if (isPresent) {
               existing.meetings_attended++;
               existing.total_minutes += duration;
@@ -76,7 +79,7 @@ class AnalyticsController {
               partner_id: pid,
               partner_name: ap.partners.partner_name,
               meetings_attended: isPresent ? 1 : 0,
-              meetings_accepted: 1,
+              meetings_accepted: isAccepted ? 1 : 0,
               total_minutes: isPresent ? duration : 0,
               last_meeting_date: isPresent ? formatRow({ created_at: appt.occurrence_date }).created_at.split('T')[0] : null,
               investee_name: isPresent ? investeeName : 'General',
@@ -114,7 +117,8 @@ class AnalyticsController {
    */
   static async exportAppointments(req, res) {
     try {
-      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
       const from_date = req.query.from_date;
       const to_date = req.query.to_date;
 
@@ -147,11 +151,12 @@ class AnalyticsController {
         const apptName = appt.appointment_name || appt.appointment_types?.type_name || '';
         const apptType = appt.appointment_types?.type_name || '';
         const investee = appt.investees?.investee_name || '';
-        const duration = appt.duration_minutes ?? this.calculateDuration(appt.start_at, appt.end_at);
+        const duration = this.getEffectiveDuration(appt);
         const modified = formatRow({ modified_at: appt.modified_at }).modified_at;
 
         if (appt.appointment_partners && appt.appointment_partners.length > 0) {
           for (const p of appt.appointment_partners) {
+            const attendanceStatus = p.attendance_status || 'PENDING';
             rows.push({
               appointment_date: apptDate,
               appointment_name: apptName,
@@ -159,9 +164,12 @@ class AnalyticsController {
               partner_name: p.partners?.partner_name || '',
               investee,
               duration_minutes: duration,
-              present: p.is_present === true ? 1 : 0,
-              absent_but_informed: p.is_present === false && p.absent_informed === true ? 1 : 0,
-              absent_after_accepting: p.is_present === false && p.absent_informed === false ? 1 : 0,
+              actual_meeting_minutes: appt.actual_meeting_minutes ?? null,
+              attendance_status: attendanceStatus,
+              present: attendanceStatus === 'PRESENT' ? 1 : 0,
+              absent_but_informed: attendanceStatus === 'ABSENT_INFORMED' ? 1 : 0,
+              absent_after_accepting: attendanceStatus === 'ABSENT_NOT_INFORMED' ? 1 : 0,
+              pending: attendanceStatus === 'PENDING' ? 1 : 0,
               modified_at: modified,
             });
           }
@@ -174,9 +182,12 @@ class AnalyticsController {
             partner_name: '',
             investee,
             duration_minutes: duration,
+            actual_meeting_minutes: appt.actual_meeting_minutes ?? null,
+            attendance_status: 'PENDING',
             present: 0,
             absent_but_informed: 0,
             absent_after_accepting: 0,
+            pending: 1,
             modified_at: modified,
           });
         }
@@ -193,14 +204,15 @@ class AnalyticsController {
    * GET /analytics/metrics-by-category
    * Returns category metrics: meetings count, distinct partners, hours, avg duration
    * Query params:
-   *   - chapter_id: UUID (defaults to authenticated user's chapter)
+    *   - chapter_id: from authenticated user's token
    *   - from_month: YYYY-MM
    *   - to_month: YYYY-MM
    *   - partner_id?: UUID (optional filter)
    */
   static async metricsByCategory(req, res) {
     try {
-      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
       const from_month = req.query.from_month;
       const to_month = req.query.to_month;
       const partner_id = req.query.partner_id;
@@ -229,7 +241,7 @@ class AnalyticsController {
         },
         include: {
           appointment_types: { select: { type_name: true } },
-          appointment_partners: { select: { partner_id: true, is_present: true } },
+          appointment_partners: { select: { partner_id: true, attendance_status: true } },
         },
       });
 
@@ -237,14 +249,16 @@ class AnalyticsController {
       const categoryMap = new Map();
       for (const appt of appointments) {
         const cat = appt.appointment_types?.type_name || 'General';
-        const duration = appt.duration_minutes || this.calculateDuration(appt.start_at, appt.end_at);
+        const duration = this.getEffectiveDuration(appt);
 
         const uniquePartners = new Set();
         let presentCount = 0;
         let acceptedCount = 0;
         for (const ap of appt.appointment_partners) {
-          acceptedCount++;
-          if (ap.is_present === true) {
+          if (ap.attendance_status !== 'PENDING') {
+            acceptedCount++;
+          }
+          if (ap.attendance_status === 'PRESENT') {
             presentCount++;
             uniquePartners.add(ap.partner_id);
           }
@@ -291,14 +305,15 @@ class AnalyticsController {
    * GET /analytics/monthly-engagement
    * Returns monthly engagement: meetings count, distinct partners engaged
    * Query params:
-   *   - chapter_id: UUID
+    *   - chapter_id: from authenticated user's token
    *   - from_month: YYYY-MM
    *   - to_month: YYYY-MM
    *   - investee_id?: UUID (optional filter)
    */
   static async monthlyEngagement(req, res) {
     try {
-      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
       const from_month = req.query.from_month;
       const to_month = req.query.to_month;
       const investee_id = req.query.investee_id;
@@ -323,7 +338,7 @@ class AnalyticsController {
           ...(investee_id && { investee_id }),
         },
         include: {
-          appointment_partners: { select: { partner_id: true, is_present: true } },
+          appointment_partners: { select: { partner_id: true, attendance_status: true } },
           investees: { select: { investee_name: true } },
         },
       });
@@ -338,8 +353,10 @@ class AnalyticsController {
         let presentCount = 0;
         let acceptedCount = 0;
         for (const ap of appt.appointment_partners) {
-          acceptedCount++;
-          if (ap.is_present === true) {
+          if (ap.attendance_status !== 'PENDING') {
+            acceptedCount++;
+          }
+          if (ap.attendance_status === 'PRESENT') {
             presentCount++;
             uniquePartners.add(ap.partner_id);
           }
@@ -387,13 +404,14 @@ class AnalyticsController {
    * GET /analytics/investee-analytics
    * Returns investee metrics: meetings count, hours spent, avg duration
    * Query params:
-   *   - chapter_id: UUID
+    *   - chapter_id: from authenticated user's token
    *   - from_month: YYYY-MM
    *   - to_month: YYYY-MM
    */
   static async investeeAnalytics(req, res) {
     try {
-      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
       const from_month = req.query.from_month;
       const to_month = req.query.to_month;
 
@@ -416,6 +434,7 @@ class AnalyticsController {
           occurrence_date: { gte: startDate, lte: endDate },
         },
         include: {
+          appointment_partners: { select: { partner_id: true, attendance_status: true } },
           investees: { select: { investee_name: true } },
         },
       });
@@ -424,14 +443,14 @@ class AnalyticsController {
       const investeeMap = new Map();
       for (const appt of appointments) {
         const investeeName = appt.investees?.investee_name || 'General';
-        const duration = appt.duration_minutes || this.calculateDuration(appt.start_at, appt.end_at);
+        const duration = this.getEffectiveDuration(appt);
 
         let presentCount = 0;
         let acceptedCount = 0;
         if (appt.appointment_partners && appt.appointment_partners.length > 0) {
           for (const ap of appt.appointment_partners) {
-            acceptedCount++;
-            if (ap.is_present === true) presentCount++;
+            if (ap.attendance_status !== 'PENDING') acceptedCount++;
+            if (ap.attendance_status === 'PRESENT') presentCount++;
           }
         }
 
@@ -476,6 +495,16 @@ class AnalyticsController {
     const [eh, em] = endAt.split(':').map(Number);
     const diff = (eh * 60 + em) - (sh * 60 + sm);
     return diff > 0 ? diff : 0;
+  }
+
+  static getEffectiveDuration(appt) {
+    if (Number.isInteger(appt.actual_meeting_minutes) && appt.actual_meeting_minutes >= 0) {
+      return appt.actual_meeting_minutes;
+    }
+    if (typeof appt.duration_minutes === 'number') {
+      return appt.duration_minutes;
+    }
+    return this.calculateDuration(appt.start_at, appt.end_at);
   }
 }
 

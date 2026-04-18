@@ -18,10 +18,6 @@ class GroupTypeRepository {
     }
 
     static async create(chapter_id, type_name) {
-        // Upsert logic: If it exists, return it, otherwise create
-        const existing = await this.findByName(chapter_id, type_name);
-        if (existing) return existing;
-
         const row = await prisma.group_types.create({
             data: { chapter_id, type_name },
         });
@@ -63,10 +59,6 @@ class AppointmentTypeRepository {
     }
 
     static async create(chapter_id, type_name) {
-        // Upsert logic
-        const existing = await this.findByName(chapter_id, type_name);
-        if (existing) return existing;
-
         const row = await prisma.appointment_types.create({
             data: { chapter_id, type_name },
         });

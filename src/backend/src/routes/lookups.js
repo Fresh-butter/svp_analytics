@@ -19,7 +19,7 @@ router.get('/group-types', authenticate, (req, res) => {
 router.post('/group-types', authenticate, (req, res) => {
   // #swagger.tags = ['Lookups']
   // #swagger.summary = 'Create a group type'
-  // #swagger.description = 'Creates a new group type for the authenticated user chapter.'
+  // #swagger.description = 'Creates a new group type for the authenticated user chapter. Duplicate type_name returns 409.'
   /* #swagger.security = [{ "bearerAuth": [] }] */
   /* #swagger.requestBody = {
        required: true,
@@ -37,6 +37,7 @@ router.post('/group-types', authenticate, (req, res) => {
      } */
   /* #swagger.responses[201] = { description: 'Group type created' } */
   /* #swagger.responses[400] = { description: 'Validation error (type_name or chapter_id missing)' } */
+  /* #swagger.responses[409] = { description: 'Duplicate group type name in chapter' } */
   /* #swagger.responses[500] = { description: 'Internal server error' } */
   return LookupController.createGroupType(req, res);
 });
@@ -75,7 +76,7 @@ router.get('/appointment-types', authenticate, (req, res) => {
 router.post('/appointment-types', authenticate, (req, res) => {
   // #swagger.tags = ['Lookups']
   // #swagger.summary = 'Create an appointment type'
-  // #swagger.description = 'Creates a new appointment type for the authenticated user chapter.'
+  // #swagger.description = 'Creates a new appointment type for the authenticated user chapter. Duplicate type_name returns 409.'
   /* #swagger.security = [{ "bearerAuth": [] }] */
   /* #swagger.requestBody = {
        required: true,
@@ -93,6 +94,7 @@ router.post('/appointment-types', authenticate, (req, res) => {
      } */
   /* #swagger.responses[201] = { description: 'Appointment type created' } */
   /* #swagger.responses[400] = { description: 'Validation error (type_name or chapter_id missing)' } */
+  /* #swagger.responses[409] = { description: 'Duplicate appointment type name in chapter' } */
   /* #swagger.responses[500] = { description: 'Internal server error' } */
   return LookupController.createAppointmentType(req, res);
 });

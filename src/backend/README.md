@@ -226,10 +226,11 @@ Authorization: Bearer <token>
 
 Briefly, how password reset works in this backend:
 
-1. User requests password reset by POSTing their email to `/api/auth/forgot-password`.
-2. Backend validates the request and updates credentials according to the auth service flow.
-3. If SMTP is configured, email delivery is attempted using the configured SMTP transport.
-4. For exact behavior and payloads, refer to `/api/docs` for the active endpoint contract.
+1. User requests a verification code by POSTing their email and chapter ID to `/api/auth/forgot-password`.
+2. Backend validates the request and emails a short-lived verification code.
+3. User submits the code plus a new password to `/api/auth/reset-password`.
+4. New passwords must be at least 8 characters and include at least one uppercase letter, one lowercase letter, one number, and one symbol.
+5. For exact behavior and payloads, refer to `/api/docs` for the active endpoint contract.
 
 ---
 

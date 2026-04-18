@@ -1,5 +1,6 @@
 const { AppointmentRepository } = require('../repositories');
 const { prisma } = require('../config/prisma');
+const { requireChapterIdFromToken, validationError, parseMonthYear, monthYearPagination } = require('../utils/controllerHelpers');
 
 function toTrimmedString(value) {
   if (value === null || value === undefined) return '';
@@ -72,12 +73,13 @@ class AppointmentController {
   /** GET /appointments — paginates by month, year */
   static async list(req, res) {
     try {
-      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
-      
-      const today = new Date();
-      const month = req.query.month || (today.getMonth() + 1);
-      const year = req.query.year || today.getFullYear();
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
 
+      const monthYear = parseMonthYear(req.query, res);
+      if (!monthYear) return;
+
+      const { month, year } = monthYear;
       const filters = { month, year };
 
       // Pass the month and year as filters; repository should handle this as filtering/pagination
@@ -86,7 +88,7 @@ class AppointmentController {
       res.json({
         success: true, 
         data: rows,
-        pagination: { month, year, total }
+        pagination: monthYearPagination(month, year, total)
       });
     } catch (err) {
       console.error('List appointments error:', err);
@@ -97,12 +99,14 @@ class AppointmentController {
   /** GET /appointments/:id — with investee, recurring appointment, and partners details */
   static async get(req, res) {
     try {
+      const monthYear = parseMonthYear(req.query, res);
+      if (!monthYear) return;
       const appointment = await AppointmentRepository.findByIdWithDetails(req.params.id);
       if (!appointment) {
         res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found' } });
         return;
       }
-      res.json({ success: true, data: appointment });
+      res.json({ success: true, data: appointment, pagination: monthYearPagination(monthYear.month, monthYear.year, 1) });
     } catch (err) {
       console.error('Get appointment error:', err);
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch appointment' } });
@@ -114,16 +118,31 @@ class AppointmentController {
    */
   static async create(req, res) {
     try {
-      const { chapter_id, occurrence_date, start_at, end_at } = req.body;
-      if (!chapter_id || !(occurrence_date || req.body.appointment_date) || !(start_at || req.body.start_time) || !(end_at || req.body.end_time)) {
+      const chapter_id = requireChapterIdFromToken(req, res);
+      const { occurrence_date, start_time, end_time } = req.body;
+      const appointment_name = toTrimmedString(req.body.appointment_name);
+      if (req.body.status !== undefined) {
         return res.status(400).json({
           success: false,
-          error: { code: 'VALIDATION', message: 'chapter_id, occurrence_date, start_at, and end_at are required' },
+          error: { code: 'VALIDATION', message: 'status is not accepted in POST /appointments' },
         });
       }
-      const appointment = await AppointmentRepository.create(req.body);
+      if (!chapter_id) return;
+      if (!appointment_name || !occurrence_date || !start_time || !end_time) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION', message: 'appointment_name, occurrence_date, start_time, and end_time are required' },
+        });
+      }
+      const appointment = await AppointmentRepository.create({ ...req.body, chapter_id });
       res.status(201).json({ success: true, data: appointment });
     } catch (err) {
+      if (err.code === 'VALIDATION') {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION', message: err.message },
+        });
+      }
       console.error('Create appointment error:', err);
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to create appointment', stack: err.stack } });
     }
@@ -132,7 +151,13 @@ class AppointmentController {
   /** PUT /appointments/:id — update appointment (allows status change) */
   static async update(req, res) {
     try {
-      // Body can include: start_at, end_at, appointment_type_id, group_type_id, investee, array of partners, status
+      // Body can include: occurrence_date, start_time, end_time, appointment_type_id, group_type_id, investee, partners, status
+      if (req.body.status !== undefined) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION', message: 'status is not accepted in PUT /appointments/:id. Use /complete, /cancel, or /pending' },
+        });
+      }
       const appointment = await AppointmentRepository.update(req.params.id, req.body);
       if (!appointment) {
         res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found' } });
@@ -155,17 +180,29 @@ class AppointmentController {
    */
   static async complete(req, res) {
     try {
-      const { attendance } = req.body;
-      if (!Array.isArray(attendance)) {
+      const { attendance, actual_meeting_minutes } = req.body;
+      if (!Array.isArray(attendance) || attendance.length === 0) {
         res.status(400).json({
           success: false,
-          error: { code: 'VALIDATION', message: 'attendance array is required: [{partner_id, is_present, absent_informed?}]' },
+          error: { code: 'VALIDATION', message: 'attendance array is required: [{partner_id, attendance_status}]' },
         });
         return;
       }
-      const appointment = await AppointmentRepository.complete(req.params.id, attendance);
+
+      if (!Number.isInteger(actual_meeting_minutes) || actual_meeting_minutes < 0) {
+        res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION', message: 'actual_meeting_minutes must be a non-negative integer' },
+        });
+        return;
+      }
+
+      const appointment = await AppointmentRepository.complete(req.params.id, {
+        attendance,
+        actual_meeting_minutes,
+      });
       if (!appointment) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found or already completed' } });
+        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found or not in PENDING status' } });
         return;
       }
       res.json({ success: true, data: appointment });
@@ -176,6 +213,48 @@ class AppointmentController {
       }
       console.error('Complete appointment error:', err);
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to complete appointment' } });
+    }
+  }
+
+  /**
+   * PATCH /appointments/:id/cancel
+   */
+  static async cancel(req, res) {
+    try {
+      const appointment = await AppointmentRepository.cancel(req.params.id);
+      if (!appointment) {
+        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found' } });
+        return;
+      }
+      res.json({ success: true, data: appointment });
+    } catch (err) {
+      if (err.code === 'VALIDATION') {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: err.message } });
+        return;
+      }
+      console.error('Cancel appointment error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel appointment' } });
+    }
+  }
+
+  /**
+   * PATCH /appointments/:id/pending
+   */
+  static async pending(req, res) {
+    try {
+      const appointment = await AppointmentRepository.markPending(req.params.id);
+      if (!appointment) {
+        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found' } });
+        return;
+      }
+      res.json({ success: true, data: appointment });
+    } catch (err) {
+      if (err.code === 'VALIDATION') {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: err.message } });
+        return;
+      }
+      console.error('Mark appointment pending error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to mark appointment as pending' } });
     }
   }
 
@@ -199,21 +278,21 @@ class AppointmentController {
    * Accepts { rows: Array } where each row may contain:
     *  - appointment_name, description, occurrence_date (YYYY-MM-DD), investee_name, status, start_time, end_time, group_type
    * Validations:
-   *  - appointment_name must be present and unique within chapter
+    *  - appointment_name must be present and unique for the same occurrence_date within chapter
     *  - occurrence_date + description must be unique (description falls back to appointment_name)
    * Creates appointments with provided fields; missing investee/group_type are left null.
    */
   static async import(req, res) {
     try {
-      const chapter_id = req.body.chapter_id || req.user?.chapter_id;
+      const chapter_id = requireChapterIdFromToken(req, res);
       const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
 
-      if (!chapter_id) return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id required' } });
-      if (rows.length === 0) return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'rows array required' } });
+      if (!chapter_id) return;
+      if (rows.length === 0) return validationError(res, 'rows array required');
 
       const results = [];
-      const seenNames = new Set();
       const seenDateDescription = new Set();
+      const seenDateName = new Set();
 
       for (const [idx, r] of rows.entries()) {
         const appointment_name = toTrimmedString(r.appointment_name || r.name || r.app_name);
@@ -226,6 +305,7 @@ class AppointmentController {
         const status = normalizeImportStatus(r.status || 'COMPLETED');
         const uniqueDescription = (description || appointment_name).toLowerCase();
         const nameKey = appointment_name.toLowerCase();
+        const dateNameKey = `${occurrence_date}::${nameKey}`;
         const dateDescriptionKey = `${occurrence_date}::${uniqueDescription}`;
 
         if (status !== 'COMPLETED') {
@@ -258,11 +338,11 @@ class AppointmentController {
         }
 
         // Batch-level uniqueness checks (within the uploaded file)
-        if (seenNames.has(nameKey)) {
-          results.push({ row: idx, success: false, error: 'duplicate appointment_name in import file' });
+        if (seenDateName.has(dateNameKey)) {
+          results.push({ row: idx, success: false, error: 'duplicate appointment_name for same occurrence_date in import file' });
           continue;
         }
-        seenNames.add(nameKey);
+        seenDateName.add(dateNameKey);
 
         if (seenDateDescription.has(dateDescriptionKey)) {
           results.push({ row: idx, success: false, error: 'duplicate occurrence_date + description in import file' });
@@ -271,15 +351,9 @@ class AppointmentController {
         seenDateDescription.add(dateDescriptionKey);
 
         // Existing-data uniqueness checks
-        const existingByName = await prisma.appointments.findFirst({ where: { chapter_id, appointment_name: { equals: appointment_name, mode: 'insensitive' } } });
-        if (existingByName) {
-          results.push({ row: idx, success: false, error: 'appointment_name already exists' });
-          continue;
-        }
-
         const existingByDateAndName = await prisma.appointments.findFirst({ where: { chapter_id, occurrence_date: new Date(occurrence_date), appointment_name: { equals: appointment_name, mode: 'insensitive' } } });
         if (existingByDateAndName) {
-          results.push({ row: idx, success: false, error: 'appointment with same date and name already exists' });
+          results.push({ row: idx, success: false, error: 'appointment_name must be unique for the same occurrence_date' });
           continue;
         }
 

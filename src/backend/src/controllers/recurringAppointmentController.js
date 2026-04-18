@@ -1,5 +1,6 @@
 const { RecurringAppointmentRepository } = require('../repositories');
 const { MaterializationService } = require('../services/materializationService');
+const { requireChapterIdFromToken, validateDateRange, validationError } = require('../utils/controllerHelpers');
 
 class RecurringAppointmentController {
   /**
@@ -8,7 +9,8 @@ class RecurringAppointmentController {
    */
   static async list(req, res) {
     try {
-      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
       
       const rows = await RecurringAppointmentRepository.findAll(chapter_id);
 
@@ -55,16 +57,13 @@ class RecurringAppointmentController {
    */
   static async create(req, res) {
     try {
-      const { chapter_id, start_time, duration_minutes, rrule, start_date, end_date } = req.body;
+      const chapter_id = requireChapterIdFromToken(req, res);
+      const { start_time, duration_minutes, rrule, start_date, end_date } = req.body;
 
-      if (!chapter_id || !start_time || !duration_minutes || !rrule || !start_date || !end_date) {
-        res.status(400).json({
-          success: false,
-          error: {
-            code: 'VALIDATION',
-            message: 'chapter_id, start_time, duration_minutes, rrule, start_date, and end_date are required',
-          },
-        });
+      if (!chapter_id) return;
+
+      if (!start_time || !duration_minutes || !rrule || !start_date || !end_date) {
+        validationError(res, 'start_time, duration_minutes, rrule, start_date, and end_date are required');
         return;
       }
 
@@ -78,13 +77,7 @@ class RecurringAppointmentController {
         return;
       }
 
-      if (new Date(end_date) < new Date(start_date)) {
-        res.status(400).json({
-          success: false,
-          error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' },
-        });
-        return;
-      }
+      if (!validateDateRange(res, start_date, end_date)) return;
 
       // Validate rrule
       const rruleValidation = MaterializationService.validateRRule(rrule);
@@ -107,7 +100,7 @@ class RecurringAppointmentController {
         return;
       }
 
-      const template = await RecurringAppointmentRepository.create(req.body);
+      const template = await RecurringAppointmentRepository.create({ ...req.body, chapter_id });
       res.status(201).json({ success: true, data: template });
     } catch (err) {
       console.error('Create recurring appointment error:', err);
@@ -139,13 +132,7 @@ class RecurringAppointmentController {
       }
 
       if (req.body.start_date && req.body.end_date) {
-        if (new Date(req.body.end_date) < new Date(req.body.start_date)) {
-          res.status(400).json({
-            success: false,
-            error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' },
-          });
-          return;
-        }
+        if (!validateDateRange(res, req.body.start_date, req.body.end_date)) return;
       }
 
       // Validate end_date if provided

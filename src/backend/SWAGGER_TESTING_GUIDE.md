@@ -68,9 +68,13 @@ npm run db:seed
   - Missing password/email -> `400`
   - Wrong credentials -> `401`
 - `POST /api/auth/forgot-password`
-  - Existing email -> `200`
+  - Existing email + chapter -> `200`
   - Non-existing email -> `200` (anti-enumeration)
-  - Missing email -> `400`
+  - Missing email or chapter_id -> `400`
+- `POST /api/auth/reset-password`
+  - Valid code + password with uppercase, lowercase, number, and symbol -> `200`
+  - Invalid/expired code -> `400`
+  - Weak password -> `400`
 - `POST /api/auth/logout` (auth)
   - Valid token -> `200`
   - Missing/invalid token -> `401`

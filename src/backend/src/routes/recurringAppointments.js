@@ -7,14 +7,8 @@ const router = Router();
 router.get('/', authenticate, (req, res) => {
   // #swagger.tags = ['Recurring Appointments']
   // #swagger.summary = 'List recurring appointment templates'
-  // #swagger.description = 'Returns all recurring appointment templates for a chapter.'
+  // #swagger.description = 'Returns all recurring appointment templates for the authenticated user chapter.'
   /* #swagger.security = [{ "bearerAuth": [] }] */
-  /* #swagger.parameters['chapter_id'] = {
-       in: 'query',
-       type: 'string',
-       format: 'uuid',
-       description: 'Chapter UUID (defaults to authenticated user chapter)'
-     } */
   /* #swagger.responses[200] = { description: 'List of recurring appointment templates' } */
   /* #swagger.responses[500] = { description: 'Internal server error' } */
   return RecurringAppointmentController.list(req, res);
@@ -41,7 +35,7 @@ router.get('/:id', authenticate, (req, res) => {
 router.post('/', authenticate, (req, res) => {
   // #swagger.tags = ['Recurring Appointments']
   // #swagger.summary = 'Create a recurring appointment template'
-  // #swagger.description = 'Creates a new recurring appointment template with an rrule schedule. end_date cannot be more than 1 year from today.'
+  // #swagger.description = 'Creates a new recurring appointment template with an rrule schedule. end_date cannot be more than 1 year from today. chapter_id is derived from auth token.'
   /* #swagger.security = [{ "bearerAuth": [] }] */
   /* #swagger.requestBody = {
        required: true,
@@ -49,9 +43,8 @@ router.post('/', authenticate, (req, res) => {
          "application/json": {
            schema: {
              type: 'object',
-             required: ['chapter_id', 'start_time', 'duration_minutes', 'rrule', 'start_date', 'end_date', 'appointment_type_id'],
+             required: ['start_time', 'duration_minutes', 'rrule', 'start_date', 'end_date', 'appointment_type_id'],
              properties: {
-               chapter_id: { type: 'string', format: 'uuid' },
                start_time: { type: 'string', example: '10:00' },
                duration_minutes: { type: 'integer', example: 60 },
                rrule: { type: 'string', example: 'FREQ=WEEKLY;BYDAY=MO' },

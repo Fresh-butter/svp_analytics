@@ -7,14 +7,8 @@ const router = Router();
 router.get('/', authenticate, (req, res) => {
     // #swagger.tags = ['Appointments']
     // #swagger.summary = 'List appointments'
-    // #swagger.description = 'Returns appointments for a chapter, paginated by month and year. Defaults to current month/year.'
+  // #swagger.description = 'Returns appointments for the authenticated user chapter, paginated by month and year. Defaults to current month/year.'
     /* #swagger.security = [{ "bearerAuth": [] }] */
-    /* #swagger.parameters['chapter_id'] = {
-         in: 'query',
-         type: 'string',
-         format: 'uuid',
-         description: 'Chapter UUID (defaults to authenticated user chapter)'
-       } */
     /* #swagger.parameters['month'] = {
          in: 'query',
          type: 'integer',
@@ -54,7 +48,7 @@ router.get('/', authenticate, (req, res) => {
 router.get('/:id', authenticate, (req, res) => {
     // #swagger.tags = ['Appointments']
     // #swagger.summary = 'Get appointment by ID'
-    // #swagger.description = 'Returns an appointment with investee, recurring appointment, and partners details.'
+  // #swagger.description = 'Returns a single appointment with associated partners (attendance), investee details, and recurring appointment details. Accepts optional month/year context and returns pagination metadata (defaults to current month/year).'
     /* #swagger.security = [{ "bearerAuth": [] }] */
     /* #swagger.parameters['id'] = {
          in: 'path',
@@ -62,6 +56,16 @@ router.get('/:id', authenticate, (req, res) => {
          type: 'string',
          format: 'uuid',
          description: 'Appointment UUID'
+       } */
+    /* #swagger.parameters['month'] = {
+         in: 'query',
+         type: 'integer',
+         description: 'Month number (1-12). Defaults to current month.'
+       } */
+    /* #swagger.parameters['year'] = {
+         in: 'query',
+         type: 'integer',
+         description: 'Year (e.g. 2025). Defaults to current year.'
        } */
     /* #swagger.responses[200] = { description: 'Appointment details' } */
     /* #swagger.responses[404] = { description: 'Appointment not found' } */
@@ -72,7 +76,7 @@ router.get('/:id', authenticate, (req, res) => {
 router.post('/', authenticate, (req, res) => {
     // #swagger.tags = ['Appointments']
     // #swagger.summary = 'Create a new appointment'
-    // #swagger.description = 'Creates a new appointment with optional partner and investee associations.'
+  // #swagger.description = 'Creates a new appointment from explicit payload data (including explicit partners list). chapter_id is derived from auth token.'
     /* #swagger.security = [{ "bearerAuth": [] }] */
     /* #swagger.requestBody = {
          required: true,
@@ -80,15 +84,15 @@ router.post('/', authenticate, (req, res) => {
            "application/json": {
              schema: {
                type: 'object',
+               required: ['appointment_name', 'occurrence_date', 'start_time', 'end_time'],
                properties: {
-                 chapter_id: { type: 'string', format: 'uuid' },
-                 start_at: { type: 'string', format: 'date-time', example: '2025-03-15T10:00:00Z' },
-                 end_at: { type: 'string', format: 'date-time', example: '2025-03-15T11:00:00Z' },
+                 appointment_name: { type: 'string', maxLength: 200 },
+                 occurrence_date: { type: 'string', format: 'date', example: '2026-04-17' },
+                 start_time: { type: 'string', example: '10:00:00', description: 'IST local time' },
+                 end_time: { type: 'string', example: '11:00:00', description: 'IST local time' },
                  appointment_type_id: { type: 'string', format: 'uuid' },
                  group_type_id: { type: 'string', format: 'uuid' },
                  investee_id: { type: 'string', format: 'uuid' },
-                 group_id: { type: 'string', format: 'uuid' },
-                 status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'CANCELLED'], example: 'PENDING' },
                  partners: {
                    type: 'array',
                    items: { type: 'string', format: 'uuid' },
@@ -107,7 +111,7 @@ router.post('/', authenticate, (req, res) => {
 router.put('/:id', authenticate, (req, res) => {
     // #swagger.tags = ['Appointments']
     // #swagger.summary = 'Update an appointment'
-    // #swagger.description = 'Update appointment details. Can include start_at, end_at, type, investee, partners, and status.'
+  // #swagger.description = 'Update appointment details. Status transitions are handled by /complete, /cancel, and /pending endpoints.'
     /* #swagger.security = [{ "bearerAuth": [] }] */
     /* #swagger.parameters['id'] = {
          in: 'path',
@@ -123,13 +127,12 @@ router.put('/:id', authenticate, (req, res) => {
              schema: {
                type: 'object',
                properties: {
-                 start_at: { type: 'string', format: 'date-time' },
-                 end_at: { type: 'string', format: 'date-time' },
+                 occurrence_date: { type: 'string', format: 'date' },
+                 start_time: { type: 'string', example: '10:00:00', description: 'IST local time' },
+                 end_time: { type: 'string', example: '11:00:00', description: 'IST local time' },
                  appointment_type_id: { type: 'string', format: 'uuid' },
                  group_type_id: { type: 'string', format: 'uuid' },
                  investee_id: { type: 'string', format: 'uuid' },
-                 group_id: { type: 'string', format: 'uuid' },
-                 status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
                  partners: {
                    type: 'array',
                    items: { type: 'string', format: 'uuid' }
@@ -148,7 +151,7 @@ router.put('/:id', authenticate, (req, res) => {
 router.patch('/:id/complete', authenticate, (req, res) => {
     // #swagger.tags = ['Appointments']
     // #swagger.summary = 'Mark appointment as completed'
-    // #swagger.description = 'Marks an appointment as completed and records partner attendance.'
+  // #swagger.description = 'Marks a PENDING appointment as completed and records partner attendance.'
     /* #swagger.security = [{ "bearerAuth": [] }] */
     /* #swagger.parameters['id'] = {
          in: 'path',
@@ -163,22 +166,25 @@ router.patch('/:id/complete', authenticate, (req, res) => {
            "application/json": {
              schema: {
                type: 'object',
-               required: ['attendance'],
+               required: ['attendance', 'actual_meeting_minutes'],
                properties: {
+                 actual_meeting_minutes: { type: 'integer', minimum: 0, description: 'Actual meeting minutes recorded at completion time' },
                  attendance: {
                    type: 'array',
                    items: {
                      type: 'object',
-                     required: ['partner_id', 'is_present'],
+                     required: ['partner_id', 'attendance_status'],
                      properties: {
                        partner_id: { type: 'string', format: 'uuid' },
-                       is_present: { type: 'boolean' },
-                       absent_informed: { type: 'boolean', nullable: true }
+                       attendance_status: {
+                         type: 'string',
+                         enum: ['ABSENT_NOT_INFORMED', 'ABSENT_INFORMED', 'PRESENT']
+                       }
                      }
                    },
                    example: [
-                     { partner_id: '550e8400-e29b-41d4-a716-446655440000', is_present: true, absent_informed: null },
-                     { partner_id: '660e8400-e29b-41d4-a716-446655440001', is_present: false, absent_informed: true }
+                     { partner_id: '550e8400-e29b-41d4-a716-446655440000', attendance_status: 'PRESENT' },
+                     { partner_id: '660e8400-e29b-41d4-a716-446655440001', attendance_status: 'ABSENT_INFORMED' }
                    ]
                  }
                }
@@ -188,10 +194,46 @@ router.patch('/:id/complete', authenticate, (req, res) => {
        } */
     /* #swagger.responses[200] = { description: 'Appointment marked as completed' } */
     /* #swagger.responses[400] = { description: 'attendance array is required' } */
-    /* #swagger.responses[404] = { description: 'Appointment not found or already completed' } */
+    /* #swagger.responses[404] = { description: 'Appointment not found or not in PENDING status' } */
     /* #swagger.responses[500] = { description: 'Internal server error' } */
     return AppointmentController.complete(req, res);
 });
+
+  router.patch('/:id/cancel', authenticate, (req, res) => {
+    // #swagger.tags = ['Appointments']
+    // #swagger.summary = 'Mark appointment as cancelled'
+    // #swagger.description = 'Marks appointment as CANCELLED and clears completion artifacts.'
+    /* #swagger.security = [{ "bearerAuth": [] }] */
+    /* #swagger.parameters['id'] = {
+       in: 'path',
+       required: true,
+       type: 'string',
+       format: 'uuid',
+       description: 'Appointment UUID'
+       } */
+    /* #swagger.responses[200] = { description: 'Appointment marked as cancelled' } */
+    /* #swagger.responses[404] = { description: 'Appointment not found' } */
+    /* #swagger.responses[500] = { description: 'Internal server error' } */
+    return AppointmentController.cancel(req, res);
+  });
+
+  router.patch('/:id/pending', authenticate, (req, res) => {
+    // #swagger.tags = ['Appointments']
+    // #swagger.summary = 'Mark appointment as pending'
+    // #swagger.description = 'Marks appointment as PENDING and clears completion artifacts.'
+    /* #swagger.security = [{ "bearerAuth": [] }] */
+    /* #swagger.parameters['id'] = {
+       in: 'path',
+       required: true,
+       type: 'string',
+       format: 'uuid',
+       description: 'Appointment UUID'
+       } */
+    /* #swagger.responses[200] = { description: 'Appointment marked as pending' } */
+    /* #swagger.responses[404] = { description: 'Appointment not found' } */
+    /* #swagger.responses[500] = { description: 'Internal server error' } */
+    return AppointmentController.pending(req, res);
+  });
 
 router.delete('/:id', authenticate, (req, res) => {
     // #swagger.tags = ['Appointments']

@@ -4,6 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 DO $$ BEGIN CREATE TYPE user_type_enum AS ENUM ('ADMIN','PARTNER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TYPE appointment_status_enum AS ENUM ('PENDING','COMPLETED','CANCELLED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE attendance_status_enum AS ENUM ('PENDING','ABSENT_NOT_INFORMED','ABSENT_INFORMED','PRESENT'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Trigger to auto-update modified_at
 CREATE OR REPLACE FUNCTION update_modified_column()
@@ -46,7 +47,7 @@ CREATE TABLE IF NOT EXISTS partners (
   partner_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   chapter_id         UUID NOT NULL REFERENCES chapters(chapter_id),
   partner_name       VARCHAR(150) NOT NULL,
-  email              VARCHAR(255),
+  email              VARCHAR(255) NOT NULL,
   linkedin_url       VARCHAR(500),
   primary_partner_id UUID REFERENCES partners(partner_id),
   start_date         DATE NOT NULL,
@@ -56,7 +57,7 @@ CREATE TABLE IF NOT EXISTS partners (
   CONSTRAINT chk_partner_dates CHECK (start_date <= COALESCE(end_date, '9999-12-31'::date))
 );
 CREATE INDEX IF NOT EXISTS idx_partners_chapter ON partners(chapter_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_partners_chapter_email ON partners(chapter_id, email) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_partners_chapter_email ON partners(chapter_id, email);
 DROP TRIGGER IF EXISTS update_partners_modtime ON partners;
 CREATE TRIGGER update_partners_modtime BEFORE UPDATE ON partners FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
@@ -131,7 +132,7 @@ CREATE TABLE IF NOT EXISTS group_partners (
   modified_at      TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT chk_gp_dates CHECK (start_date <= COALESCE(end_date, '9999-12-31'::date))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_gp_unique ON group_partners(group_id, partner_id) WHERE end_date IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gp_unique ON group_partners(group_id, partner_id);
 CREATE INDEX IF NOT EXISTS idx_gp_chapter ON group_partners(chapter_id);
 DROP TRIGGER IF EXISTS update_group_partners_modtime ON group_partners;
 CREATE TRIGGER update_group_partners_modtime BEFORE UPDATE ON group_partners FOR EACH ROW EXECUTE FUNCTION update_modified_column();
@@ -140,20 +141,24 @@ CREATE TRIGGER update_group_partners_modtime BEFORE UPDATE ON group_partners FOR
 CREATE TABLE IF NOT EXISTS appointments (
   appointment_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   chapter_id          UUID NOT NULL REFERENCES chapters(chapter_id),
+  appointment_name    VARCHAR(200) NOT NULL,
   appointment_type_id UUID REFERENCES appointment_types(appointment_type_id),
   group_type_id       UUID REFERENCES group_types(group_type_id),
   occurrence_date     DATE NOT NULL,
   start_at            TIMESTAMPTZ NOT NULL,
   end_at              TIMESTAMPTZ NOT NULL,
   duration_minutes    INTEGER GENERATED ALWAYS AS (EXTRACT(EPOCH FROM (end_at - start_at))::integer / 60) STORED,
+  actual_meeting_minutes INTEGER,
   investee_id         UUID REFERENCES investees(investee_id),
   status              appointment_status_enum NOT NULL DEFAULT 'PENDING',
   created_at          TIMESTAMPTZ DEFAULT NOW(),
   modified_at         TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT chk_appointment_times CHECK (start_at <= end_at)
+  CONSTRAINT chk_appointment_times CHECK (start_at <= end_at),
+  CONSTRAINT chk_actual_meeting_minutes CHECK (actual_meeting_minutes IS NULL OR actual_meeting_minutes >= 0)
 );
 CREATE INDEX IF NOT EXISTS idx_appointments_chapter ON appointments(chapter_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(occurrence_date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_chapter_date_name ON appointments(chapter_id, occurrence_date, appointment_name);
 DROP TRIGGER IF EXISTS update_appointments_modtime ON appointments;
 CREATE TRIGGER update_appointments_modtime BEFORE UPDATE ON appointments FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
@@ -163,7 +168,7 @@ CREATE TABLE IF NOT EXISTS appointment_partners (
   chapter_id     UUID NOT NULL REFERENCES chapters(chapter_id),
   appointment_id UUID NOT NULL REFERENCES appointments(appointment_id) ON DELETE CASCADE,
   partner_id     UUID NOT NULL REFERENCES partners(partner_id),
-  is_present     BOOLEAN DEFAULT false,
+  attendance_status attendance_status_enum NOT NULL DEFAULT 'PENDING',
   created_at     TIMESTAMPTZ DEFAULT NOW(),
   modified_at    TIMESTAMPTZ DEFAULT NOW()
 );

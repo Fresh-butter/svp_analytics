@@ -54,4 +54,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_rec_occurrence
   ON appointments(rec_appointment_id, occurrence_date)
   WHERE rec_appointment_id IS NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_chapter_date_name
+  ON appointments(chapter_id, occurrence_date, appointment_name);
+
 COMMIT;

@@ -1,5 +1,6 @@
 const { prisma } = require('../config/prisma');
 const { formatRow, formatRows, activeFilter, fmtDate, fmtTime, fmtTimestamp, parseLocalDate, utcToday } = require('../utils/helpers');
+const { isDateWithinMonthYear, monthYearPagination } = require('../utils/controllerHelpers');
 
 const SORT_COLUMNS = ['partner_name', 'email', 'start_date', 'end_date', 'created_at'];
 
@@ -71,7 +72,7 @@ class PartnerRepository {
         },
         appointment_partners: {
           select: {
-            is_present: true,
+            attendance_status: true,
             appointments: {
               select: { appointment_id: true, occurrence_date: true, start_at: true, end_at: true, status: true, appointment_types: { select: { type_name: true } } }
             },
@@ -101,6 +102,8 @@ class PartnerRepository {
     const today = utcToday();
 
     const formatted = formatRow(partner, { computeActive: true });
+    const month = queryFilters.month ? Number(queryFilters.month) : null;
+    const year = queryFilters.year ? Number(queryFilters.year) : null;
 
     formatted.groups = partner.group_partners.map(gp => {
       const sd = new Date(gp.start_date); sd.setUTCHours(0, 0, 0, 0);
@@ -116,15 +119,29 @@ class PartnerRepository {
       };
     });
 
-    formatted.appointments = partner.appointment_partners.map(ap => ({
+    const appointments = partner.appointment_partners
+      .map(ap => ({
       appointment_id: ap.appointments.appointment_id,
       appointment_type: ap.appointments.appointment_types?.type_name || null,
       occurrence_date: fmtDate(ap.appointments.occurrence_date),
       start_at: fmtTime(ap.appointments.start_at),
       end_at: fmtTime(ap.appointments.end_at),
+      actual_meeting_minutes: ap.appointments.actual_meeting_minutes ?? null,
       status: ap.appointments.status,
-      is_present: ap.is_present,
+      attendance_status: ap.attendance_status,
+      is_present: ap.attendance_status === 'PRESENT',
     }));
+    formatted.appointments = appointments
+      .filter((row) => {
+        if (!month || !year) return true;
+        return isDateWithinMonthYear(row.occurrence_date, month, year);
+      });
+
+    formatted.pagination = monthYearPagination(
+      month || new Date().getMonth() + 1,
+      year || new Date().getFullYear(),
+      formatted.appointments.length,
+    );
 
     formatted.recurring_appointments = partner.recurring_appointment_partners.map(rap => ({
       rec_app_partner_id: rap.rec_app_partner_id,
@@ -145,7 +162,7 @@ class PartnerRepository {
       data: {
         chapter_id: data.chapter_id,
         partner_name: data.partner_name,
-        email: data.email || null,
+        email: data.email,
         linkedin_url: data.linkedin_url || null,
         primary_partner_id: data.primary_partner_id || null,
         start_date: parseLocalDate(data.start_date),
@@ -159,7 +176,7 @@ class PartnerRepository {
     const updateData = {};
 
     if (data.partner_name !== undefined) updateData.partner_name = data.partner_name;
-    if (data.email !== undefined) updateData.email = data.email || null;
+    if (data.email !== undefined) updateData.email = data.email;
     if (data.linkedin_url !== undefined) updateData.linkedin_url = data.linkedin_url || null;
     if (data.primary_partner_id !== undefined) updateData.primary_partner_id = data.primary_partner_id || null;
     if (data.start_date !== undefined) updateData.start_date = parseLocalDate(data.start_date);

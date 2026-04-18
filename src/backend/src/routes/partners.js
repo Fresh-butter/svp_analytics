@@ -7,25 +7,8 @@ const router = Router();
 router.get('/', authenticate, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'List all partners'
-  // #swagger.description = 'Returns partners for a chapter. Supports filtering by active status and primary flag.'
+  // #swagger.description = 'Returns all partners for the authenticated user chapter (no pagination, no backend list filters).'
   /* #swagger.security = [{ "bearerAuth": [] }] */
-  /* #swagger.parameters['chapter_id'] = {
-       in: 'query',
-       type: 'string',
-       format: 'uuid',
-       description: 'Chapter UUID (defaults to authenticated user chapter)'
-     } */
-  /* #swagger.parameters['active'] = {
-       in: 'query',
-       type: 'string',
-       enum: ['true', 'false'],
-       description: 'Filter by active status'
-     } */
-  /* #swagger.parameters['primary'] = {
-       in: 'query',
-       type: 'string',
-       description: 'Filter by primary partner name'
-     } */
   /* #swagger.responses[200] = { description: 'List of partners' } */
   /* #swagger.responses[500] = { description: 'Internal server error' } */
   return PartnerController.list(req, res);
@@ -34,7 +17,7 @@ router.get('/', authenticate, (req, res) => {
 router.get('/:id', authenticate, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'Get partner by ID'
-  // #swagger.description = 'Returns a partner with groups and appointment details. Optionally filtered by month and year.'
+  // #swagger.description = 'Returns a partner with group membership dates, appointments with attendance, and recurring appointment details. Accepts optional month/year context for nested appointments and returns pagination metadata (defaults to current month/year).'
   /* #swagger.security = [{ "bearerAuth": [] }] */
   /* #swagger.parameters['id'] = {
        in: 'path',
@@ -45,13 +28,13 @@ router.get('/:id', authenticate, (req, res) => {
      } */
   /* #swagger.parameters['month'] = {
        in: 'query',
-       type: 'string',
-       description: 'Month name, e.g. January. Defaults to current month.'
+       type: 'integer',
+       description: 'Month number (1-12). Defaults to current month.'
      } */
   /* #swagger.parameters['year'] = {
        in: 'query',
-       type: 'string',
-       description: 'Year, e.g. 2025. Defaults to current year.'
+       type: 'integer',
+       description: 'Year (e.g. 2025). Defaults to current year.'
      } */
   /* #swagger.responses[200] = { description: 'Partner details' } */
   /* #swagger.responses[404] = { description: 'Partner not found' } */
@@ -62,7 +45,7 @@ router.get('/:id', authenticate, (req, res) => {
 router.post('/', authenticate, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'Create a new partner'
-  // #swagger.description = 'Creates a new partner. Requires chapter_id, partner_name, and start_date.'
+  // #swagger.description = 'Creates a new partner. Requires partner_name, email, and start_date; chapter_id is derived from the auth token.'
   /* #swagger.security = [{ "bearerAuth": [] }] */
   /* #swagger.requestBody = {
        required: true,
@@ -70,9 +53,8 @@ router.post('/', authenticate, (req, res) => {
          "application/json": {
            schema: {
              type: 'object',
-             required: ['chapter_id', 'partner_name', 'start_date'],
+               required: ['partner_name', 'email', 'start_date'],
              properties: {
-               chapter_id: { type: 'string', format: 'uuid' },
                partner_name: { type: 'string', example: 'Jane Doe' },
                email: { type: 'string', example: 'jane@example.com' },
                start_date: { type: 'string', format: 'date', example: '2025-01-15' },
@@ -93,7 +75,7 @@ router.post('/', authenticate, (req, res) => {
 router.put('/:id', authenticate, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'Update a partner'
-  // #swagger.description = 'Update partner details by ID.'
+  // #swagger.description = 'Updates partner details by ID.'
   /* #swagger.security = [{ "bearerAuth": [] }] */
   /* #swagger.parameters['id'] = {
        in: 'path',

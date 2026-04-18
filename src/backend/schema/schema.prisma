@@ -12,8 +12,7 @@ model appointment_partners {
   chapter_id     String       @db.Uuid
   appointment_id String       @db.Uuid
   partner_id     String       @db.Uuid
-  is_present     Boolean?     @default(false)
-  absent_informed Boolean?
+  attendance_status attendance_status_enum @default(PENDING)
   created_at     DateTime?    @default(now()) @db.Timestamptz(6)
   modified_at    DateTime?    @default(now()) @db.Timestamptz(6)
   appointments   appointments @relation(fields: [appointment_id], references: [appointment_id], onDelete: Cascade, onUpdate: NoAction)
@@ -42,13 +41,14 @@ model appointment_types {
 model appointments {
   appointment_id         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   chapter_id             String                  @db.Uuid
-  appointment_name       String?                 @db.VarChar(200)
+  appointment_name       String                  @db.VarChar(200)
   appointment_type_id    String?                 @db.Uuid
   group_type_id          String?                 @db.Uuid
   occurrence_date        DateTime                @db.Date
   start_at               DateTime                @db.Timestamptz(6)
   end_at                 DateTime                @db.Timestamptz(6)
   duration_minutes       Int?                    @default(dbgenerated("((EXTRACT(epoch FROM (end_at - start_at)))::integer / 60)"))
+  actual_meeting_minutes Int?
   investee_id            String?                 @db.Uuid
   status                 appointment_status_enum @default(PENDING)
   created_at             DateTime?               @default(now()) @db.Timestamptz(6)
@@ -62,6 +62,7 @@ model appointments {
   recurring_appointments recurring_appointments? @relation(fields: [rec_appointment_id], references: [rec_appointment_id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([rec_appointment_id, occurrence_date], map: "idx_appointments_rec_occurrence", where: raw("(rec_appointment_id IS NOT NULL)"))
+  @@unique([chapter_id, occurrence_date, appointment_name], map: "idx_appointments_chapter_date_name")
   @@index([chapter_id], map: "idx_appointments_chapter")
   @@index([occurrence_date], map: "idx_appointments_date")
 }
@@ -98,7 +99,7 @@ model group_partners {
   groups           groups    @relation(fields: [group_id], references: [group_id], onDelete: Cascade, onUpdate: NoAction)
   partners         partners  @relation(fields: [partner_id], references: [partner_id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@unique([group_id, partner_id], map: "idx_gp_unique", where: raw("(end_date IS NULL)"))
+  @@unique([group_id, partner_id], map: "idx_gp_unique")
   @@index([chapter_id], map: "idx_gp_chapter")
 }
 
@@ -159,7 +160,7 @@ model partners {
   partner_id                     String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   chapter_id                     String                           @db.Uuid
   partner_name                   String                           @db.VarChar(150)
-  email                          String?                          @db.VarChar(255)
+  email                          String                           @db.VarChar(255)
   linkedin_url                   String?                          @db.VarChar(500)
   primary_partner_id             String?                          @db.Uuid
   start_date                     DateTime                         @db.Date
@@ -173,7 +174,7 @@ model partners {
   other_partners                 partners[]                       @relation("partnersTopartners")
   recurring_appointment_partners recurring_appointment_partners[]
 
-  @@unique([chapter_id, email], map: "idx_partners_chapter_email", where: raw("(email IS NOT NULL)"))
+  @@unique([chapter_id, email], map: "idx_partners_chapter_email")
   @@index([chapter_id], map: "idx_partners_chapter")
 }
 
@@ -242,4 +243,11 @@ enum appointment_status_enum {
 enum user_type_enum {
   ADMIN
   PARTNER
+}
+
+enum attendance_status_enum {
+  PENDING
+  ABSENT_NOT_INFORMED
+  ABSENT_INFORMED
+  PRESENT
 }

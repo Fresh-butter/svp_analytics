@@ -1,13 +1,14 @@
 const { AuthService } = require('../services');
 const { UserRepository } = require('../repositories');
+const { validatePasswordStrength, passwordStrengthMessage } = require('../utils/passwordPolicy');
 
 class AuthController {
   /** POST /auth/login */
   static async login(req, res) {
     try {
       const { email, password, chapter_id } = req.body;
-      if (!email || !password) {
-        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Email and password are required' } });
+      if (!email || !password || !chapter_id) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Email, password, and chapter_id are required' } });
         return;
       }
       const result = await AuthService.login(email, password, chapter_id);
@@ -28,20 +29,43 @@ class AuthController {
   }
 
   /** POST /auth/forgot-password */
-  static async forgotPassword(req, res) {
+  static async requestPasswordReset(req, res) {
     try {
-      const { email } = req.body;
-      if (!email) {
-        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Email is required' } });
+      const { email, chapter_id } = req.body;
+      if (!email || !chapter_id) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Email and chapter_id are required' } });
         return;
       }
-      const result = await AuthService.forgotPassword(email);
+      await AuthService.requestPasswordReset(email, chapter_id);
       // Always return same message to prevent email enumeration
-      res.json({ success: true, data: { message: 'If that email exists, a new password has been sent.' } });
+      res.json({ success: true, data: { message: 'If that account exists, a verification code has been sent.' } });
     } catch (err) {
-      console.error('Forgot password error:', err);
-      // For debugging in development, send the exact message
+      console.error('Password reset code request error:', err);
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to process request' } });
+    }
+  }
+
+  /** POST /auth/reset-password */
+  static async resetPassword(req, res) {
+    try {
+      const { email, chapter_id, code, new_password } = req.body;
+      if (!email || !chapter_id || !code || !new_password) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Email, chapter_id, code, and new_password are required' } });
+        return;
+      }
+      if (!validatePasswordStrength(new_password)) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: passwordStrengthMessage() } });
+        return;
+      }
+      const result = await AuthService.resetPassword({ email, chapter_id, code, new_password });
+      if (!result) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Invalid or expired verification code' } });
+        return;
+      }
+      res.json({ success: true, data: { message: 'Password reset successfully' } });
+    } catch (err) {
+      console.error('Reset password error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to reset password' } });
     }
   }
 

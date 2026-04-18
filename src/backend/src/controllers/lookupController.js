@@ -1,13 +1,12 @@
 const { GroupTypeRepository, AppointmentTypeRepository } = require('../repositories/lookupRepository');
+const { requireChapterIdFromToken } = require('../utils/controllerHelpers');
 
 class LookupController {
     /** GET /group-types */
     static async listGroupTypes(req, res) {
         try {
-            if (!req.user?.chapter_id) {
-                return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id is required (from token)' } });
-            }
-            const { chapter_id } = req.user;
+            const chapter_id = requireChapterIdFromToken(req, res);
+            if (!chapter_id) return;
             const types = await GroupTypeRepository.findAll(chapter_id);
             res.json({ success: true, data: types });
         } catch (err) {
@@ -19,22 +18,31 @@ class LookupController {
     /** POST /group-types */
     static async createGroupType(req, res) {
         try {
-            if (!req.user?.chapter_id) {
-                return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id is required (from token)' } });
-            }
-            const { chapter_id } = req.user;
+            const chapter_id = requireChapterIdFromToken(req, res);
+            if (!chapter_id) return;
             const { type_name } = req.body;
             if (!type_name) {
                 return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'type_name is required' } });
             }
 
-            // Check if type already exists — return 200 instead of 201
+            // Reject duplicates explicitly.
             const existing = await GroupTypeRepository.findByName(chapter_id, type_name);
-            if (existing) return res.json({ success: true, data: existing });
+            if (existing) {
+                return res.status(409).json({
+                    success: false,
+                    error: { code: 'DUPLICATE', message: 'Group type with this name already exists in this chapter' },
+                });
+            }
 
             const type = await GroupTypeRepository.create(chapter_id, type_name);
             res.status(201).json({ success: true, data: type });
         } catch (err) {
+            if (err.code === '23505' || err.code === 'P2002') {
+                return res.status(409).json({
+                    success: false,
+                    error: { code: 'DUPLICATE', message: 'Group type with this name already exists in this chapter' },
+                });
+            }
             console.error('Create group type error:', err);
             res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create group type' } });
         }
@@ -63,10 +71,8 @@ class LookupController {
     /** GET /appointment-types */
     static async listAppointmentTypes(req, res) {
         try {
-            if (!req.user?.chapter_id) {
-                return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id is required (from token)' } });
-            }
-            const { chapter_id } = req.user;
+            const chapter_id = requireChapterIdFromToken(req, res);
+            if (!chapter_id) return;
             const types = await AppointmentTypeRepository.findAll(chapter_id);
             res.json({ success: true, data: types });
         } catch (err) {
@@ -78,22 +84,31 @@ class LookupController {
     /** POST /appointment-types */
     static async createAppointmentType(req, res) {
         try {
-            if (!req.user?.chapter_id) {
-                return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id is required (from token)' } });
-            }
-            const { chapter_id } = req.user;
+            const chapter_id = requireChapterIdFromToken(req, res);
+            if (!chapter_id) return;
             const { type_name } = req.body;
             if (!type_name) {
                 return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'type_name is required' } });
             }
 
-            // Check if type already exists — return 200 instead of 201
+            // Reject duplicates explicitly.
             const existing = await AppointmentTypeRepository.findByName(chapter_id, type_name);
-            if (existing) return res.json({ success: true, data: existing });
+            if (existing) {
+                return res.status(409).json({
+                    success: false,
+                    error: { code: 'DUPLICATE', message: 'Appointment type with this name already exists in this chapter' },
+                });
+            }
 
             const type = await AppointmentTypeRepository.create(chapter_id, type_name);
             res.status(201).json({ success: true, data: type });
         } catch (err) {
+            if (err.code === '23505' || err.code === 'P2002') {
+                return res.status(409).json({
+                    success: false,
+                    error: { code: 'DUPLICATE', message: 'Appointment type with this name already exists in this chapter' },
+                });
+            }
             console.error('Create appointment type error:', err);
             res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create appointment type' } });
         }

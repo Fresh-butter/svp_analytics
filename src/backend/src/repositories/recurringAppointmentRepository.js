@@ -32,6 +32,12 @@ class RecurringAppointmentRepository {
       include: {
         groups: true,
         investees: true,
+        appointment_types: {
+          select: {
+            appointment_type_id: true,
+            type_name: true,
+          }
+        },
         recurring_appointment_partners: {
           include: {
             partners: { select: { partner_id: true, partner_name: true, email: true } },
@@ -46,6 +52,7 @@ class RecurringAppointmentRepository {
     const result = formatRow(row);
     result.group = row.groups ? formatRow(row.groups) : null;
     result.investee = row.investees ? formatRow(row.investees) : null;
+    result.appointment_type = row.appointment_types ? formatRow(row.appointment_types) : null;
 
     result.partners = row.recurring_appointment_partners.map(rp => ({
       rec_app_partner_id: rp.rec_app_partner_id,
@@ -56,6 +63,7 @@ class RecurringAppointmentRepository {
 
     delete result.groups;
     delete result.investees;
+    delete result.appointment_types;
     delete result.recurring_appointment_partners;
 
     return result;

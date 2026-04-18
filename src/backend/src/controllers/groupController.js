@@ -1,17 +1,13 @@
 const { GroupRepository } = require('../repositories');
+const { requireChapterIdFromToken, validateDateRange, validationError } = require('../utils/controllerHelpers');
 
 class GroupController {
-  /** GET /groups — list without pagination, search, filter by active/group_type */
+  /** GET /groups — list without pagination or filtering */
   static async list(req, res) {
     try {
-      const chapter_id = req.query.chapter_id || req.user?.chapter_id;
-      const filters = {
-        active: req.query.active === 'true' ? true : req.query.active === 'false' ? false : undefined,
-        group_type_id: req.query.group_type_id,
-        search: req.query.search,
-      };
-      // Fetch all without complex serverside filters like pagination, leaving search/sort to frontend
-      const { rows } = await GroupRepository.findAll(chapter_id, filters);
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
+      const { rows } = await GroupRepository.findAll(chapter_id);
       res.json({
         success: true, data: rows,
       });
@@ -36,15 +32,15 @@ class GroupController {
   /** POST /groups — create new group */
   static async create(req, res) {
     try {
-      const { chapter_id, investee_id, group_name, group_type_id, start_date, end_date } = req.body;
-      if (!chapter_id || !group_name || !group_type_id || !start_date) {
-        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id, group_name, group_type_id, and start_date are required' } });
+      const chapter_id = requireChapterIdFromToken(req, res);
+      const { investee_id, group_name, group_type_id, start_date, end_date } = req.body;
+      if (!chapter_id) return;
+      if (!group_name || !group_type_id || !start_date) {
+        return validationError(res, 'group_name, group_type_id, and start_date are required');
       }
-      if (end_date && new Date(end_date) < new Date(start_date)) {
-        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
-      }
+      if (!validateDateRange(res, start_date, end_date)) return;
 
-      const group = await GroupRepository.create(req.body);
+      const group = await GroupRepository.create({ ...req.body, chapter_id });
       if (group.error) {
         return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: group.error } });
       }
@@ -56,15 +52,15 @@ class GroupController {
     }
   }
 
-  /** PUT /groups/:id — update group metadata */
+  /** PUT /groups/:id — update group metadata and optional members */
   static async update(req, res) {
     try {
       const { start_date, end_date } = req.body;
-      if (start_date && end_date && new Date(end_date) < new Date(start_date)) {
-        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'End date cannot be less than Start date' } });
-      }
+      const chapter_id = requireChapterIdFromToken(req, res);
+      if (!chapter_id) return;
+      if (!validateDateRange(res, start_date, end_date)) return;
 
-      const group = await GroupRepository.update(req.params.id, req.body);
+      const group = await GroupRepository.update(req.params.id, req.body, chapter_id);
       if (group?.error) {
         return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: group.error } });
       }
@@ -95,20 +91,19 @@ class GroupController {
 
   /* ── Group Partners sub-resource ── */
 
-  /** PUT /groups/:id/partners — overwrite existing group partners */
-  static async updatePartners(req, res) {
+  /** PUT /groups/:id/members — overwrite existing group members */
+  static async updateMembers(req, res) {
     try {
       const group_id = req.params.id;
-      const { chapter_id, partners } = req.body;
+      const chapter_id = requireChapterIdFromToken(req, res);
+      const { members } = req.body;
 
-      if (!chapter_id) {
-        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'chapter_id is required' } });
-      }
-      if (!Array.isArray(partners)) {
-        return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'partners must be an array' } });
+      if (!chapter_id) return;
+      if (!Array.isArray(members)) {
+        return validationError(res, 'members must be an array');
       }
 
-      const result = await GroupRepository.syncPartners(group_id, chapter_id, partners);
+      const result = await GroupRepository.syncMembers(group_id, chapter_id, members);
       if (result?.error) {
         return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: result.error } });
       }
@@ -122,8 +117,8 @@ class GroupController {
         res.status(409).json({ success: false, error: { code: 'DUPLICATE', message: 'Duplicate partner entries' } });
         return;
       }
-      console.error('Update group partners error:', err);
-      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to sync group partners' } });
+      console.error('Update group members error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to sync group members' } });
     }
   }
 }
