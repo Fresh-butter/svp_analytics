@@ -7,6 +7,7 @@ import { recurringAppointmentService } from '../services/recurringAppointmentSer
 import { lookupService } from '../services/lookupService';
 import { formatDate, formatTime } from '../utils/formatters';
 import { rruleToHuman } from '../mappers';
+import { navigateBack } from '../utils/navigation';
 
 type RecurringDetailData = Awaited<ReturnType<typeof recurringAppointmentService.get>>;
 
@@ -101,8 +102,8 @@ export const RecurringAppointmentViewPage = () => {
 
   return (
     <div className="space-y-6">
-      <button onClick={() => navigate('/recurring-appointments')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
-        <ArrowLeft size={16} /> Back to Recurring Appointments
+      <button onClick={() => navigateBack(navigate, '/recurring-appointments')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
+        <ArrowLeft size={16} /> Back
       </button>
 
       <Card className="p-6 bg-surface border-surfaceHighlight">
@@ -133,7 +134,7 @@ export const RecurringAppointmentViewPage = () => {
           <div><span className="text-textMuted">Start Time:</span> <span className="text-text ml-1">{formatTime(template.start_time)}</span></div>
           <div><span className="text-textMuted">End Time:</span> <span className="text-text ml-1">{getEndTime(template.start_time, template.duration_minutes)}</span></div>
           <div><span className="text-textMuted">Date Range:</span> <span className="text-text ml-1">{formatDate(template.start_date)} - {formatDate(template.end_date)}</span></div>
-          <div><span className="text-textMuted">RRule:</span> <span className="text-text ml-1 break-all">{template.rrule}</span></div>
+          <div><span className="text-textMuted">Pattern:</span> <span className="text-text ml-1">{rruleToHuman(template.rrule)}</span></div>
           <div><span className="text-textMuted">Created At:</span> <span className="text-text ml-1">{fmtDateTime(template.created_at)}</span></div>
           <div><span className="text-textMuted">Last Updated:</span> <span className="text-text ml-1">{fmtDateTime(template.modified_at)}</span></div>
         </div>
@@ -145,7 +146,20 @@ export const RecurringAppointmentViewPage = () => {
           <h2 className="text-lg font-semibold text-text">Group Details</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div><span className="text-textMuted">Group:</span> <span className="text-text ml-1">{String(groupDetails?.group_name || '-')}</span></div>
+          <div>
+            <span className="text-textMuted">Group:</span>{' '}
+            {groupDetails?.group_id ? (
+              <button
+                type="button"
+                className="text-primary hover:underline"
+                onClick={() => navigate(`/groups/${String(groupDetails.group_id)}`)}
+              >
+                {String(groupDetails?.group_name || '-')}
+              </button>
+            ) : (
+              <span className="text-text ml-1">{String(groupDetails?.group_name || '-')}</span>
+            )}
+          </div>
           <div><span className="text-textMuted">Start Date:</span> <span className="text-text ml-1">{formatDate(groupDetails?.start_date as string | undefined)}</span></div>
           <div><span className="text-textMuted">End Date:</span> <span className="text-text ml-1">{formatDate(groupDetails?.end_date as string | undefined)}</span></div>
         </div>
@@ -157,7 +171,20 @@ export const RecurringAppointmentViewPage = () => {
           <h2 className="text-lg font-semibold text-text">Investee Details</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div><span className="text-textMuted">Name:</span> <span className="text-text ml-1">{String(investeeDetails?.investee_name || '-')}</span></div>
+          <div>
+            <span className="text-textMuted">Name:</span>{' '}
+            {investeeDetails?.investee_id ? (
+              <button
+                type="button"
+                className="text-primary hover:underline"
+                onClick={() => navigate(`/investees/${String(investeeDetails.investee_id)}`)}
+              >
+                {String(investeeDetails?.investee_name || '-')}
+              </button>
+            ) : (
+              <span className="text-text ml-1">{String(investeeDetails?.investee_name || '-')}</span>
+            )}
+          </div>
           <div><span className="text-textMuted">Email:</span> <span className="text-text ml-1">{String(investeeDetails?.email || '-')}</span></div>
           <div><span className="text-textMuted">Start Date:</span> <span className="text-text ml-1">{formatDate(investeeDetails?.start_date as string | undefined)}</span></div>
           <div><span className="text-textMuted">End Date:</span> <span className="text-text ml-1">{formatDate(investeeDetails?.end_date as string | undefined)}</span></div>
@@ -174,7 +201,11 @@ export const RecurringAppointmentViewPage = () => {
         ) : (
           <div className="space-y-2">
             {template.partners.map((p) => (
-              <div key={p.partner_id} className="flex items-center justify-between px-3 py-2 bg-surfaceHighlight/20 rounded-lg text-sm">
+              <div
+                key={p.partner_id}
+                className="flex items-center justify-between px-3 py-2 bg-surfaceHighlight/20 rounded-lg text-sm cursor-pointer"
+                onClick={() => navigate(`/partners/${p.partner_id}`)}
+              >
                 <span className="text-text">{p.partner_name || p.partner_id}</span>
                 <span className="text-xs text-textMuted">{p.email || '-'}</span>
               </div>

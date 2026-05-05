@@ -11,6 +11,7 @@ type RecurringRow = { type: 'recurring'; rec: RecurringAppointment; dateStr: str
 type CalendarRow = RegularRow | RecurringRow;
 
 type Props = {
+  isPartner?: boolean;
   currentMonth: Date;
   appointments: Appointment[];
   recurringApps: RecurringAppointment[];
@@ -23,6 +24,7 @@ type Props = {
 };
 
 export const CalendarListView = ({
+  isPartner = false,
   currentMonth,
   appointments,
   recurringApps,
@@ -33,6 +35,15 @@ export const CalendarListView = ({
   onViewDetail,
   onViewRecurringDetail,
 }: Props) => {
+  const normalizeStatus = (status?: string | null) => String(status || '').trim().toUpperCase();
+  const statusLabel = (status?: string | null) => {
+    const normalized = normalizeStatus(status);
+    if (normalized === 'PENDING' || normalized === 'SCHEDULED') return 'Scheduled';
+    if (normalized === 'COMPLETED') return 'Completed';
+    if (normalized === 'CANCELLED' || normalized === 'CANCELED') return 'Cancelled';
+    return status || '-';
+  };
+
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -151,8 +162,16 @@ export const CalendarListView = ({
                     <td className="px-4 py-4 text-sm text-textMuted">{event.group_id ? groups.find((g) => g.group_id === event.group_id)?.group_name || 'Unknown Group' : '-'}</td>
                     <td className="px-4 py-4 text-sm text-textMuted">{event.investee_id ? investees.find((iv) => iv.investee_id === event.investee_id)?.investee_name || 'Unknown Investee' : '-'}</td>
                     <td className="px-4 py-4">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${event.status === 'Completed' ? 'bg-green-500/20 text-green-400' : event.status === 'Cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                        {event.status}
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full ${
+                          normalizeStatus(event.status) === 'COMPLETED'
+                            ? 'bg-green-500/20 text-green-400'
+                            : normalizeStatus(event.status) === 'CANCELLED' || normalizeStatus(event.status) === 'CANCELED'
+                              ? 'bg-red-500/20 text-red-400'
+                              : 'bg-yellow-500/20 text-yellow-400'
+                        }`}
+                      >
+                        {statusLabel(event.status)}
                       </span>
                     </td>
                   </tr>
@@ -173,14 +192,16 @@ export const CalendarListView = ({
                   <td className="px-4 py-4 text-sm text-textMuted whitespace-nowrap">{rec.planned_start && rec.planned_end ? `${rec.planned_start} - ${rec.planned_end}` : '-'}</td>
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-2">
-                      <Repeat size={13} className="text-violet-400 shrink-0" />
-                      <span className="font-medium text-text">{rec.meeting_type || 'Recurring'}</span>
+                      {!isPartner && <Repeat size={13} className="text-violet-400 shrink-0" />}
+                      <span className="font-medium text-text">{rec.meeting_type || 'Appointment'}</span>
                     </div>
                   </td>
                   <td className="px-4 py-4 text-sm text-textMuted">{groups.find((g) => g.group_id === rec.group_id)?.group_name || '-'}</td>
                   <td className="px-4 py-4 text-sm text-textMuted">{rec.investee_id ? investees.find((iv) => iv.investee_id === rec.investee_id)?.investee_name : '-'}</td>
                   <td className="px-4 py-4">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-400">Recurring</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${isPartner ? 'bg-yellow-500/20 text-yellow-400' : 'bg-violet-500/20 text-violet-400'}`}>
+                      {isPartner ? 'Scheduled' : 'Recurring'}
+                    </span>
                   </td>
                 </tr>
               );

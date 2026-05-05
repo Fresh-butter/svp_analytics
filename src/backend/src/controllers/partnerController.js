@@ -1,4 +1,4 @@
-const { PartnerRepository } = require('../repositories');
+const { PartnerRepository, UserRepository } = require('../repositories');
 
 class PartnerController {
   /** GET /partners — list without pagination, filter by active and primary */
@@ -24,6 +24,12 @@ class PartnerController {
     try {
       const partner = await PartnerRepository.findByIdWithDetails(req.params.id);
       if (!partner) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Partner not found' } }); return; }
+
+      if (req.user?.user_type === 'PARTNER') {
+        partner.appointments = [];
+        partner.recurring_appointments = [];
+      }
+
       res.json({ success: true, data: partner });
     } catch (err) {
       console.error('Get partner error:', err);
@@ -93,10 +99,15 @@ class PartnerController {
     }
   }
 
-  /** DELETE /partners/:id — blocked if referenced */
+  /** DELETE /partners/:id — deletes partner and associated user login */
   static async remove(req, res) {
     try {
-      const result = await PartnerRepository.delete(req.params.id);
+      const partnerId = req.params.id;
+
+      // Find associated login first; remove it only after partner deletion succeeds.
+      const partnerUser = await UserRepository.findByPartner(partnerId);
+
+      const result = await PartnerRepository.delete(partnerId);
       if (result.error) {
         res.status(409).json({ success: false, error: { code: 'REFERENCE_CONFLICT', message: result.error } });
         return;
@@ -105,6 +116,11 @@ class PartnerController {
         res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Partner not found' } });
         return;
       }
+
+      if (partnerUser) {
+        await UserRepository.deleteById(partnerUser.user_id);
+      }
+
       res.json({ success: true, data: { message: 'Partner deleted' } });
     } catch (err) {
       console.error('Remove partner error:', err);

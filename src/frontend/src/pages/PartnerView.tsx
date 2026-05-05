@@ -6,6 +6,9 @@ import { ArrowLeft, Mail, Calendar, Users, Clock, Repeat, Linkedin, ChevronLeft,
 import { formatDate, formatTime } from '../utils/formatters';
 import { ActiveStatusBadge, AppointmentStatusBadge } from '../components/StatusBadge';
 import { DASHBOARD_AUTO_REFRESH_MS } from '../constants/refresh';
+import { rruleToHuman } from '../mappers';
+import { navigateBack } from '../utils/navigation';
+import { useAuth } from '../context/AuthContext';
 
 const APPOINTMENTS_PAGE_SIZE = 10;
 
@@ -54,6 +57,8 @@ type PartnerDetails = {
 export const PartnerViewPage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const isPartner = user?.user_type === 'PARTNER';
     const [data, setData] = useState<PartnerDetails | null>(null);
     const [loading, setLoading] = useState(true);
     const [appointmentPage, setAppointmentPage] = useState(1);
@@ -97,8 +102,8 @@ export const PartnerViewPage = () => {
 
     return (
         <div className="space-y-6">
-            <button onClick={() => navigate('/partners')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
-                <ArrowLeft size={16} /> Back to Partners
+            <button onClick={() => navigateBack(navigate, '/partners')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
+                <ArrowLeft size={16} /> Back
             </button>
 
             {/* Header Card */}
@@ -181,7 +186,7 @@ export const PartnerViewPage = () => {
                 )}
             </Card>
 
-            {/* Appointments */}
+            {!isPartner && (
             <Card className="bg-surface border-surfaceHighlight">
                 <div className="p-4 border-b border-surfaceHighlight flex items-center gap-2">
                     <Clock size={18} className="text-primary" />
@@ -204,7 +209,7 @@ export const PartnerViewPage = () => {
                                 {data.appointments
                                     .slice((appointmentPage - 1) * APPOINTMENTS_PAGE_SIZE, appointmentPage * APPOINTMENTS_PAGE_SIZE)
                                     .map((a) => (
-                                    <tr key={a.appointment_id} className="hover:bg-surfaceHighlight/30 transition-colors">
+                                    <tr key={a.appointment_id} className="hover:bg-surfaceHighlight/30 transition-colors cursor-pointer" onClick={() => navigate(`/appointments/${a.appointment_id}`)}>
                                         <td className="px-4 py-3 text-sm text-text">{formatDate(a.occurrence_date)}</td>
                                         <td className="px-4 py-3 text-sm text-textMuted">{a.appointment_type || '-'}</td>
                                         <td className="px-4 py-3 text-sm text-textMuted">{formatTime(a.start_at)} – {formatTime(a.end_at)}</td>
@@ -242,8 +247,9 @@ export const PartnerViewPage = () => {
                     <div className="p-8 text-center text-textMuted">No appointments found.</div>
                 )}
             </Card>
+            )}
 
-            {/* Recurring Appointments */}
+            {!isPartner && (
             <Card className="bg-surface border-surfaceHighlight">
                 <div className="p-4 border-b border-surfaceHighlight flex items-center gap-2">
                     <Repeat size={18} className="text-primary" />
@@ -264,11 +270,11 @@ export const PartnerViewPage = () => {
                             </thead>
                             <tbody className="divide-y divide-surfaceHighlight">
                                 {data.recurring_appointments.map((r) => (
-                                    <tr key={r.rec_appointment_id} className="hover:bg-surfaceHighlight/30 transition-colors">
+                                    <tr key={r.rec_appointment_id} className="hover:bg-surfaceHighlight/30 transition-colors cursor-pointer" onClick={() => navigate(`/recurring-appointments/${r.rec_appointment_id}`)}>
                                         <td className="px-4 py-3 text-sm text-text">{r.appointment_type || '-'}</td>
                                         <td className="px-4 py-3 text-sm text-textMuted">{formatTime(r.start_time)}</td>
                                         <td className="px-4 py-3 text-sm text-textMuted">{r.duration_minutes} min</td>
-                                        <td className="px-4 py-3 text-sm text-textMuted">{r.rrule || '-'}</td>
+                                        <td className="px-4 py-3 text-sm text-textMuted">{r.rrule ? rruleToHuman(r.rrule) : '-'}</td>
                                         <td className="px-4 py-3 text-sm text-textMuted">{formatDate(r.start_date)}</td>
                                         <td className="px-4 py-3 text-sm text-textMuted">{formatDate(r.end_date)}</td>
                                     </tr>
@@ -280,6 +286,7 @@ export const PartnerViewPage = () => {
                     <div className="p-8 text-center text-textMuted">No recurring appointments found.</div>
                 )}
             </Card>
+            )}
         </div>
     );
 };

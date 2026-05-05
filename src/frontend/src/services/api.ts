@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) || '/api';
 
 function getToken(): string | null {
   return localStorage.getItem('token');
@@ -25,15 +25,14 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  if (res.status === 401) {
-    clearToken();
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw new Error('Cannot reach backend API. Please make sure backend is running and frontend proxy/base URL is correct.');
   }
 
   const contentType = res.headers.get('content-type') || '';
@@ -46,6 +45,18 @@ async function request<T>(
   }
 
   const json = await res.json();
+  const errorCode = json?.error?.code;
+  const isAuthEndpoint =
+    endpoint.startsWith('/auth/login') ||
+    endpoint.startsWith('/auth/forgot-password') ||
+    endpoint.startsWith('/auth/partner-registration');
+
+  if (res.status === 401) {
+    if (!isAuthEndpoint) {
+      clearToken();
+      window.location.href = '/login';
+    }
+  }
 
   if (!res.ok || json.success === false) {
     const msg = json.error?.message || `Request failed (${res.status})`;

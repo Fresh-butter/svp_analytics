@@ -123,13 +123,10 @@ The schema is applied in two files:
 
 ```
 backend/
-├── .env.example                  Environment variable template
 ├── package.json                  Dependencies + npm scripts
 ├── prisma.config.ts              Prisma configuration
 ├── swagger.js                    Swagger spec generator
 ├── swagger_output.json           Generated Swagger/OpenAPI output
-├── prisma/
-│   └── schema.prisma             Prisma schema (models, relations)
 ├── schema/
 │   ├── db-schema-v1.0.sql        Base schema
 │   ├── db-schema-v1.1.sql        Recurring appointments migration
@@ -142,7 +139,8 @@ backend/
 ├── scripts/                      Developer utility scripts
 │   ├── setup.js                  Interactive setup wizard (new/existing modes)
 │   ├── seed-admin-chapters.js    Seeds chapters + admin users only
-│   └── seed-dummy-data.js        Seeds dummy data for all other entities + partner login accounts
+│   ├── seed-dummy-data.js        Seeds dummy data for all other entities + partner login accounts
+│   └── seed-partner-users.js     Seeds partner login accounts for existing partners
 │
 └── src/                          Application source
     ├── index.js                  Express app entry point
@@ -151,6 +149,15 @@ backend/
     │   ├── index.js              Reads env vars, exports config object
     │   ├── database.js           pg connection pool (used by scripts)
     │   └── prisma.js             Prisma Client (used by all repositories)
+    │
+    ├── controllers/              Request parsing → service/repo call → response
+    │   ├── authController.js
+    │   ├── partnerController.js
+    │   ├── investeeController.js
+    │   ├── groupController.js
+    │   ├── appointmentController.js
+    │   ├── recurringAppointmentController.js
+    │   └── index.js              Barrel export
     │
     ├── routes/                   Route definitions (with Swagger JSDoc)
     │   ├── auth.js
@@ -161,15 +168,6 @@ backend/
     │   ├── appointments.js
     │   ├── recurringAppointments.js
     │   └── lookups.js
-    │
-    ├── controllers/              Request parsing → service/repo call → response
-    │   ├── authController.js
-    │   ├── partnerController.js
-    │   ├── investeeController.js
-    │   ├── groupController.js
-    │   ├── appointmentController.js
-    │   ├── recurringAppointmentController.js
-    │   └── index.js              Barrel export
     │
     ├── repositories/             All DB queries via Prisma (data access layer)
     │   ├── chapterRepository.js
@@ -196,6 +194,18 @@ backend/
     └── utils/
         └── helpers.js            Shared utility functions (date/time formatting, Prisma helpers)
 ```
+
+### Current API areas
+
+- Auth, Chapters, Partners, Investees, Groups
+- Appointments and recurring appointments
+- Lookups and analytics
+- Partner-scoped appointment access, notifications, and materialization
+
+### Repo navigation
+
+- Root overview: [../../README.md](../../README.md)
+- Frontend docs: [../frontend/README.md](../frontend/README.md)
 
 ---
 

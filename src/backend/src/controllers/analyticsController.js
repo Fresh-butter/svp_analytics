@@ -57,6 +57,7 @@ class AnalyticsController {
           appointment_partners: {
             include: { partners: { select: { partner_id: true, partner_name: true } } },
           },
+          appointment_types: { select: { type_name: true } },
           investees: { select: { investee_name: true } },
         },
       });
@@ -66,6 +67,7 @@ class AnalyticsController {
       for (const appt of appointments) {
         const duration = appt.duration_minutes || this.calculateDuration(appt.start_at, appt.end_at);
         const investeeName = appt.investees?.investee_name || 'General';
+        const appointmentTypeName = appt.appointment_types?.type_name || 'General';
 
         for (const ap of appt.appointment_partners) {
           if (partner_id && ap.partners.partner_id !== partner_id) continue;
@@ -75,6 +77,7 @@ class AnalyticsController {
           if (partnerMap.has(pid)) {
             const existing = partnerMap.get(pid);
             existing.meetings_accepted++;
+            existing.typeNames.add(appointmentTypeName);
             if (isPresent) {
               existing.meetings_attended++;
               existing.total_minutes += duration;
@@ -87,6 +90,7 @@ class AnalyticsController {
             partnerMap.set(pid, {
               partner_id: pid,
               partner_name: ap.partners.partner_name,
+              typeNames: new Set([appointmentTypeName]),
               meetings_attended: isPresent ? 1 : 0,
               meetings_accepted: 1,
               total_minutes: isPresent ? duration : 0,
@@ -101,7 +105,7 @@ class AnalyticsController {
       const data = Array.from(partnerMap.values()).map(p => ({
         id: p.partner_id,
         partner_name: p.partner_name,
-        category: 'Meeting',
+        category: p.typeNames.size === 1 ? Array.from(p.typeNames)[0] : 'Multiple',
         investee_name: p.investee_name,
         meetings_attended: p.meetings_attended,
         meetings_accepted: p.meetings_accepted,
@@ -219,6 +223,7 @@ class AnalyticsController {
       const from_month = req.query.from_month;
       const to_month = req.query.to_month;
       const partner_id = req.query.partner_id;
+      const appointment_type_id = req.query.appointment_type_id;
       const effectivePartnerId = partner_id || null;
 
       if (!from_month || !to_month) {
@@ -240,6 +245,7 @@ class AnalyticsController {
           status: 'COMPLETED',
           occurrence_date: { gte: startDate, lte: endDate },
           ...buildPartnerAppointmentFilter(effectivePartnerId),
+          ...(appointment_type_id && { appointment_type_id }),
         },
         include: {
           appointment_types: { select: { type_name: true } },
@@ -316,6 +322,7 @@ class AnalyticsController {
       const from_month = req.query.from_month;
       const to_month = req.query.to_month;
       const investee_id = req.query.investee_id;
+      const appointment_type_id = req.query.appointment_type_id;
       const partner_id = getPartnerScope(req);
 
       if (!from_month || !to_month) {
@@ -337,6 +344,7 @@ class AnalyticsController {
           occurrence_date: { gte: startDate, lte: endDate },
           ...buildPartnerAppointmentFilter(partner_id),
           ...(investee_id && { investee_id }),
+          ...(appointment_type_id && { appointment_type_id }),
         },
         include: {
           appointment_partners: { select: { partner_id: true, is_present: true } },
@@ -349,6 +357,7 @@ class AnalyticsController {
       for (const appt of appointments) {
         const month = appt.occurrence_date.toISOString().split('T')[0].substring(0, 7); // YYYY-MM
         const investeeName = appt.investees?.investee_name || 'General';
+        const monthlyInvesteeLabel = investee_id ? investeeName : 'All Investees';
 
         const uniquePartners = new Set();
         let presentCount = 0;
@@ -372,7 +381,7 @@ class AnalyticsController {
             month,
             meetings_count: 1,
             partnerIds: uniquePartners,
-            investee_name: investeeName,
+            investee_name: monthlyInvesteeLabel,
             present_total: presentCount,
             accepted_total: acceptedCount,
           });
@@ -385,7 +394,7 @@ class AnalyticsController {
           month: m.month,
           meetings_count: m.meetings_count,
           distinct_partners_engaged: m.partnerIds.size,
-          category: 'Meeting',
+          category: 'All Appointment Types',
           investee_name: m.investee_name,
           meetings_attended: m.present_total || 0,
           meetings_accepted: m.accepted_total || 0,
@@ -412,6 +421,7 @@ class AnalyticsController {
       const chapter_id = req.query.chapter_id || req.user?.chapter_id;
       const from_month = req.query.from_month;
       const to_month = req.query.to_month;
+      const appointment_type_id = req.query.appointment_type_id;
       const partner_id = getPartnerScope(req);
 
       if (!from_month || !to_month) {
@@ -432,6 +442,7 @@ class AnalyticsController {
           status: 'COMPLETED',
           occurrence_date: { gte: startDate, lte: endDate },
           ...buildPartnerAppointmentFilter(partner_id),
+          ...(appointment_type_id && { appointment_type_id }),
         },
         include: {
           investees: { select: { investee_name: true } },

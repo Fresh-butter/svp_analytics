@@ -2,10 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card } from '../components/Common';
 import { investeeService } from '../services/investeeService';
-import { ArrowLeft, Mail, Calendar, Users, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Mail, Calendar, Users, Clock, Repeat, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDate, formatTime } from '../utils/formatters';
 import { ActiveStatusBadge, AppointmentStatusBadge } from '../components/StatusBadge';
 import { DASHBOARD_AUTO_REFRESH_MS } from '../constants/refresh';
+import { navigateBack } from '../utils/navigation';
+import { rruleToHuman } from '../mappers';
+import { useAuth } from '../context/AuthContext';
 
 const APPOINTMENTS_PAGE_SIZE = 10;
 
@@ -35,11 +38,23 @@ type InvesteeDetails = {
     is_active?: boolean;
     groups?: InvesteeGroupRow[];
     appointments?: InvesteeAppointmentRow[];
+    recurring_appointments?: Array<{
+        rec_appointment_id: string;
+        appointment_name?: string | null;
+        appointment_type?: string | null;
+        start_time: string;
+        duration_minutes: number;
+        rrule?: string | null;
+        start_date: string;
+        end_date?: string | null;
+    }>;
 };
 
 export const InvesteeViewPage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const isPartner = user?.user_type === 'PARTNER';
     const [data, setData] = useState<InvesteeDetails | null>(null);
     const [loading, setLoading] = useState(true);
     const [appointmentPage, setAppointmentPage] = useState(1);
@@ -74,8 +89,8 @@ export const InvesteeViewPage = () => {
 
     return (
         <div className="space-y-6">
-            <button onClick={() => navigate('/investees')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
-                <ArrowLeft size={16} /> Back to Investees
+            <button onClick={() => navigateBack(navigate, '/investees')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
+                <ArrowLeft size={16} /> Back
             </button>
 
             {/* Header */}
@@ -134,7 +149,7 @@ export const InvesteeViewPage = () => {
                 )}
             </Card>
 
-            {/* Appointments */}
+            {!isPartner && (
             <Card className="bg-surface border-surfaceHighlight">
                 <div className="p-4 border-b border-surfaceHighlight flex items-center gap-2">
                     <Clock size={18} className="text-primary" />
@@ -156,7 +171,7 @@ export const InvesteeViewPage = () => {
                                 {data.appointments
                                     .slice((appointmentPage - 1) * APPOINTMENTS_PAGE_SIZE, appointmentPage * APPOINTMENTS_PAGE_SIZE)
                                     .map((a) => (
-                                    <tr key={a.appointment_id} className="hover:bg-surfaceHighlight/30">
+                                    <tr key={a.appointment_id} className="hover:bg-surfaceHighlight/30 cursor-pointer" onClick={() => navigate(`/appointments/${a.appointment_id}`)}>
                                         <td className="px-4 py-3 text-sm text-text">{formatDate(a.occurrence_date)}</td>
                                         <td className="px-4 py-3 text-sm text-textMuted">{a.appointment_type || '-'}</td>
                                         <td className="px-4 py-3 text-sm text-textMuted">{formatTime(a.start_at)} – {formatTime(a.end_at)}</td>
@@ -185,6 +200,48 @@ export const InvesteeViewPage = () => {
                     <div className="p-8 text-center text-textMuted">No appointments found.</div>
                 )}
             </Card>
+            )}
+
+            {!isPartner && (
+            <Card className="bg-surface border-surfaceHighlight">
+                <div className="p-4 border-b border-surfaceHighlight flex items-center gap-2">
+                    <Repeat size={18} className="text-primary" />
+                    <h3 className="font-semibold text-text">Recurring Appointments ({data.recurring_appointments?.length || 0})</h3>
+                </div>
+                {data.recurring_appointments && data.recurring_appointments.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b border-surfaceHighlight bg-surfaceHighlight/20">
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Type / Name</th>
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Pattern</th>
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Time</th>
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Start</th>
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">End</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surfaceHighlight">
+                                {data.recurring_appointments.map((r) => (
+                                    <tr
+                                        key={r.rec_appointment_id}
+                                        className="hover:bg-surfaceHighlight/30 cursor-pointer"
+                                        onClick={() => navigate(`/recurring-appointments/${r.rec_appointment_id}`)}
+                                    >
+                                        <td className="px-4 py-3 text-sm text-text">{r.appointment_name || r.appointment_type || 'Recurring Appointment'}</td>
+                                        <td className="px-4 py-3 text-sm text-textMuted">{r.rrule ? rruleToHuman(r.rrule) : '-'}</td>
+                                        <td className="px-4 py-3 text-sm text-textMuted">{formatTime(r.start_time)}</td>
+                                        <td className="px-4 py-3 text-sm text-textMuted">{formatDate(r.start_date)}</td>
+                                        <td className="px-4 py-3 text-sm text-textMuted">{formatDate(r.end_date)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="p-8 text-center text-textMuted">No recurring appointments found.</div>
+                )}
+            </Card>
+            )}
         </div>
     );
 };

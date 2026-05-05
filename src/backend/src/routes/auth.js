@@ -7,7 +7,7 @@ const router = Router();
 router.post('/login', (req, res) => {
   // #swagger.tags = ['Auth']
   // #swagger.summary = 'Login with email and password'
-    // #swagger.description = 'Authenticates an admin or partner user and returns a JWT token. Partner accounts are linked to a partner profile and receive partner-scoped access.'
+    // #swagger.description = 'Authenticates an admin or partner user and returns a JWT token. Partner users can sign in using the temporary password sent during registration.'
   /* #swagger.requestBody = {
        required: true,
        content: {
@@ -46,14 +46,15 @@ router.post('/login', (req, res) => {
      } */
   /* #swagger.responses[400] = { description: 'Validation error — email and password required' } */
   /* #swagger.responses[401] = { description: 'Invalid email or password' } */
+  /* #swagger.responses[403] = { description: 'Partner account is locked' } */
   /* #swagger.responses[500] = { description: 'Internal server error' } */
   return AuthController.login(req, res);
 });
 
 router.post('/forgot-password', (req, res) => {
   // #swagger.tags = ['Auth']
-  // #swagger.summary = 'Request password reset'
-  // #swagger.description = 'Sends a new password to the user email if it exists. Always returns success to prevent email enumeration.'
+  // #swagger.summary = 'Request password reset OTP'
+  // #swagger.description = 'Sends a one-time password (OTP) to the user email if it exists. Always returns success to prevent email enumeration.'
   /* #swagger.requestBody = {
        required: true,
        content: {
@@ -74,10 +75,33 @@ router.post('/forgot-password', (req, res) => {
   return AuthController.forgotPassword(req, res);
 });
 
-router.post('/partner-activation/request', (req, res) => {
+router.post('/forgot-password/complete', (req, res) => {
   // #swagger.tags = ['Auth']
-  // #swagger.summary = 'Request partner account activation'
-  // #swagger.description = 'Sends an activation link to an existing partner user email.'
+  // #swagger.summary = 'Complete password reset using OTP'
+  // #swagger.description = 'Sets a new password using email + OTP.'
+  /* #swagger.requestBody = {
+       required: true,
+       content: {
+         "application/json": {
+           schema: {
+             type: 'object',
+             required: ['email', 'otp', 'password'],
+             properties: {
+               email: { type: 'string', example: 'user@svp.org' },
+               otp: { type: 'string', example: '123456' },
+               password: { type: 'string', example: 'NewStrongPass123' }
+             }
+           }
+         }
+       }
+     } */
+  return AuthController.completeForgotPassword(req, res);
+});
+
+router.post('/partner-registration/request', (req, res) => {
+  // #swagger.tags = ['Auth']
+  // #swagger.summary = 'Request partner account registration'
+  // #swagger.description = 'For first-time partner registration, creates the partner user login and sends a temporary password via email for immediate sign-in.'
   /* #swagger.requestBody = {
        required: true,
        content: {
@@ -93,29 +117,7 @@ router.post('/partner-activation/request', (req, res) => {
          }
        }
      } */
-  return AuthController.requestPartnerActivation(req, res);
-});
-
-router.post('/partner-activation/complete', (req, res) => {
-  // #swagger.tags = ['Auth']
-  // #swagger.summary = 'Complete partner account activation'
-  // #swagger.description = 'Activates partner account and sets the login password using activation token.'
-  /* #swagger.requestBody = {
-       required: true,
-       content: {
-         "application/json": {
-           schema: {
-             type: 'object',
-             required: ['token', 'password'],
-             properties: {
-               token: { type: 'string' },
-               password: { type: 'string', example: 'StrongPassword123!' }
-             }
-           }
-         }
-       }
-     } */
-  return AuthController.completePartnerActivation(req, res);
+  return AuthController.requestPartnerRegistration(req, res);
 });
 
 router.post('/logout', authenticate, (req, res) => {

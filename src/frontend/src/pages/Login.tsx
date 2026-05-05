@@ -19,11 +19,16 @@ export const LoginPage = () => {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'LOGIN' | 'FORGOT' | 'ACTIVATE'>('LOGIN');
+  const [mode, setMode] = useState<'LOGIN' | 'FORGOT' | 'RESET' | 'REGISTER'>('LOGIN');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
-  const [activateEmail, setActivateEmail] = useState('');
-  const [activateLoading, setActivateLoading] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerLoading, setRegisterLoading] = useState(false);
   const [infoMessage, setInfoMessage] = useState('');
 
   useEffect(() => {
@@ -79,9 +84,19 @@ export const LoginPage = () => {
     e.preventDefault();
     setError('');
     setInfoMessage('');
+
+    const normalizedEmail = forgotEmail.trim();
+    if (!normalizedEmail) {
+      setError('Email is required');
+      return;
+    }
+
+    const shouldSend = window.confirm(`Send password reset OTP to ${normalizedEmail}?`);
+    if (!shouldSend) return;
+
     setForgotLoading(true);
     try {
-      const msg = await authService.forgotPassword(forgotEmail);
+      const msg = await authService.forgotPassword(normalizedEmail);
       setInfoMessage(msg);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to send reset email');
@@ -90,22 +105,55 @@ export const LoginPage = () => {
     }
   };
 
-  const handlePartnerActivationRequest = async (e: FormEvent) => {
+  const handlePartnerRegistrationRequest = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setInfoMessage('');
-    setActivateLoading(true);
+    setRegisterLoading(true);
     try {
-      const result = await authService.requestPartnerActivation({ email: activateEmail, chapter_id: chapterId });
-      setInfoMessage(
-        result.temporary_password
-          ? `${result.message} Temporary password: ${result.temporary_password}`
-          : result.message
-      );
+      const result = await authService.requestPartnerRegistration({ email: registerEmail, chapter_id: chapterId });
+      setInfoMessage(result.message);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to request partner activation');
+      setError(err instanceof Error ? err.message : 'Failed to request partner registration');
     } finally {
-      setActivateLoading(false);
+      setRegisterLoading(false);
+    }
+  };
+
+  const handleCompleteForgotPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setInfoMessage('');
+
+    if (!resetEmail.trim() || !resetOtp.trim()) {
+      setError('Email and OTP are required.');
+      return;
+    }
+
+    if (resetPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (resetPassword !== resetConfirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const msg = await authService.completeForgotPassword({
+        email: resetEmail.trim(),
+        otp: resetOtp.trim(),
+        password: resetPassword,
+      });
+      setInfoMessage(msg);
+      setMode('LOGIN');
+      setPassword('');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to reset password');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -180,13 +228,21 @@ export const LoginPage = () => {
 
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-text">
-              {mode === 'FORGOT' ? 'Reset Password' : mode === 'ACTIVATE' ? 'Activate Partner Account' : 'Welcome back'}
+              {mode === 'FORGOT'
+                ? 'Reset Password'
+                : mode === 'RESET'
+                  ? 'Complete Password Reset'
+                  : mode === 'REGISTER'
+                    ? 'Register Partner Account'
+                    : 'Welcome back'}
             </h2>
             <p className="text-textMuted mt-2">
               {mode === 'FORGOT'
-                ? 'Enter your email to receive a new password'
-                : mode === 'ACTIVATE'
-                  ? 'Use your existing partner email to receive an activation link'
+                ? 'Enter your email to receive a password reset OTP'
+                : mode === 'RESET'
+                  ? 'Enter OTP and your new password'
+                : mode === 'REGISTER'
+                  ? 'Use your partner email to receive a temporary password'
                   : 'Sign in to your account to continue'}
             </p>
           </div>
@@ -238,7 +294,19 @@ export const LoginPage = () => {
                     </svg>
                     Sending...
                   </span>
-                ) : 'Send New Password'}
+                ) : 'Send Reset OTP'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetEmail(forgotEmail.trim() || email.trim());
+                  setMode('RESET');
+                  setError('');
+                  setInfoMessage('');
+                }}
+                className="w-full py-2 text-sm text-primary hover:text-primaryHover font-medium transition-colors"
+              >
+                Already have OTP? Reset Password
               </button>
               <button
                 type="button"
@@ -248,8 +316,74 @@ export const LoginPage = () => {
                 <ArrowLeft size={16} /> Back to Sign In
               </button>
             </form>
-          ) : mode === 'ACTIVATE' ? (
-            <form onSubmit={handlePartnerActivationRequest} className="space-y-5">
+          ) : mode === 'RESET' ? (
+            <form onSubmit={handleCompleteForgotPassword} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">Email address</label>
+                <div className="relative">
+                  <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" />
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-background border border-surfaceHighlight rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">OTP</label>
+                <input
+                  value={resetOtp}
+                  onChange={(e) => setResetOtp(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-surfaceHighlight rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                  placeholder="Enter OTP"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">New Password</label>
+                <input
+                  type="password"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-surfaceHighlight rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">Confirm Password</label>
+                <input
+                  type="password"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-surfaceHighlight rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={resetLoading}
+                className="w-full py-3 px-4 bg-primary hover:bg-primaryHover text-white font-semibold rounded-lg transition-all disabled:opacity-50 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]"
+              >
+                {resetLoading ? 'Resetting Password...' : 'Reset Password'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setMode('FORGOT'); setError(''); setInfoMessage(''); }}
+                className="w-full py-2 text-sm text-primary hover:text-primaryHover font-medium flex items-center justify-center gap-1 transition-colors"
+              >
+                <ArrowLeft size={16} /> Back to Forgot Password
+              </button>
+            </form>
+          ) : mode === 'REGISTER' ? (
+            <form onSubmit={handlePartnerRegistrationRequest} className="space-y-5">
               {chapters.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-text mb-2">Chapter</label>
@@ -276,8 +410,8 @@ export const LoginPage = () => {
                   <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" />
                   <input
                     type="email"
-                    value={activateEmail}
-                    onChange={(e) => setActivateEmail(e.target.value)}
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 bg-background border border-surfaceHighlight rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
                     placeholder="partner@svp.org"
                     required
@@ -287,10 +421,10 @@ export const LoginPage = () => {
 
               <button
                 type="submit"
-                disabled={activateLoading || !chapterId}
+                disabled={registerLoading || !chapterId}
                 className="w-full py-3 px-4 bg-primary hover:bg-primaryHover text-white font-semibold rounded-lg transition-all disabled:opacity-50 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]"
               >
-                {activateLoading ? 'Sending Activation Link...' : 'Send Activation Link'}
+                {registerLoading ? 'Sending Temporary Password...' : 'Send Temporary Password'}
               </button>
 
               <button
@@ -377,7 +511,12 @@ export const LoginPage = () => {
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => { setMode('FORGOT'); setError(''); setInfoMessage(''); }}
+                onClick={() => {
+                  setForgotEmail((current) => current || email.trim());
+                  setMode('FORGOT');
+                  setError('');
+                  setInfoMessage('');
+                }}
                 className="text-sm text-primary hover:text-primaryHover font-medium transition-colors"
               >
                 Forgot Password?
@@ -386,10 +525,10 @@ export const LoginPage = () => {
             <div className="text-center -mt-2">
               <button
                 type="button"
-                onClick={() => { setMode('ACTIVATE'); setError(''); setInfoMessage(''); }}
+                onClick={() => { setMode('REGISTER'); setError(''); setInfoMessage(''); }}
                 className="text-sm text-primary hover:text-primaryHover font-medium transition-colors inline-flex items-center gap-1"
               >
-                <UserPlus size={14} /> Activate Partner Account
+                <UserPlus size={14} /> Register Partner Account
               </button>
             </div>
           </form>

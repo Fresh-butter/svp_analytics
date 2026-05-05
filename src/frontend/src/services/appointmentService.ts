@@ -76,8 +76,6 @@ export const appointmentService = {
       appointment_partner_id: string;
       is_present: boolean | null;
       absent_informed?: boolean | null;
-      partner_response_status?: 'PRESENT' | 'ABSENT' | null;
-      partner_response_at?: string | null;
       partner_id: string;
       partner_name: string;
       email: string;
@@ -155,11 +153,6 @@ export const appointmentService = {
   async getAssigned(): Promise<Appointment[]> {
     const res = await api.get<AssignedResponse>('/appointments/assigned');
     return res.data.map(mapAppointment);
-  },
-
-  async respond(id: string, response_status: 'PRESENT' | 'ABSENT'): Promise<Appointment> {
-    const res = await api.patch<SingleResponse>(`/appointments/${id}/respond`, { response_status });
-    return mapAppointment(res.data);
   },
 
   /** Bulk import appointments (rows array) */

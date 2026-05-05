@@ -31,3 +31,13 @@ export const useUpdateGroup = () => {
         },
     });
 };
+
+export const useDeleteGroup = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (groupId: string) => groupService.remove(groupId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['groups'] });
+        },
+    });
+};

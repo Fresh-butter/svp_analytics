@@ -31,3 +31,13 @@ export const useUpdateInvestee = () => {
         },
     });
 };
+
+export const useDeleteInvestee = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (investeeId: string) => investeeService.remove(investeeId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['investees'] });
+        },
+    });
+};

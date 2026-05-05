@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { SharedAnalyticsTable, Column, BarCell } from './SharedAnalyticsTable';
 import type { AnalyticsInvestee } from './analyticsTypes';
@@ -41,9 +40,7 @@ export const InvesteeAnalytics = ({
     onFromMonthChange,
     onToMonthChange,
 }: Props) => {
-    const filteredData = useMemo(() => {
-        return allData;
-    }, [allData]);
+    const filteredData = allData;
 
     const columns: Column<AnalyticsInvestee>[] = [
         { header: 'Investee Name', accessor: 'investee_name', sortable: true },

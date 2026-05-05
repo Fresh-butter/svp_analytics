@@ -7,7 +7,7 @@ import { validateRecurringForm } from '../utils/validation';
 import { format, addMonths } from 'date-fns';
 import { DAY_NAMES, NTH_LABELS } from '../constants/calendar';
 
-interface CreateRecurringModalProps {
+interface RecurringAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: RecurringFormState, selectedPartnerIds: string[]) => Promise<void>;
@@ -21,7 +21,7 @@ interface CreateRecurringModalProps {
   isEditing?: boolean;
 }
 
-export function CreateRecurringModal({
+export function RecurringAppointmentModal({
   isOpen,
   onClose,
   onSubmit,
@@ -33,7 +33,7 @@ export function CreateRecurringModal({
   initialSelectedPartnerIds,
   defaultDate,
   isEditing = false,
-}: CreateRecurringModalProps) {
+}: RecurringAppointmentModalProps) {
   const { form, updateForm, resetForm } = useRecurringForm();
   const [saving, setSaving] = useState(false);
   const [selectedPartnerIds, setSelectedPartnerIds] = useState<string[]>([]);
@@ -248,3 +248,6 @@ export function CreateRecurringModal({
     </Modal>
   );
 }
+
+// Backward-compatible export name while migrating call sites.
+export const CreateRecurringModal = RecurringAppointmentModal;

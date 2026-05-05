@@ -395,39 +395,6 @@ class AppointmentController {
     }
   }
 
-  /** PATCH /appointments/:id/respond — partner marks planned presence/absence */
-  static async respond(req, res) {
-    try {
-      if (req.user?.user_type !== 'PARTNER') {
-        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only partner users can send responses' } });
-        return;
-      }
-
-      const responseStatus = String(req.body?.response_status || '').toUpperCase();
-      if (!['PRESENT', 'ABSENT'].includes(responseStatus)) {
-        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'response_status must be PRESENT or ABSENT' } });
-        return;
-      }
-
-      const appointment = await AppointmentRepository.updatePartnerResponse(req.params.id, req.user.partner_id, responseStatus);
-      if (!appointment) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Appointment not found' } });
-        return;
-      }
-      res.json({ success: true, data: appointment });
-    } catch (err) {
-      if (err.code === 'FORBIDDEN') {
-        res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: err.message } });
-        return;
-      }
-      if (err.code === 'VALIDATION') {
-        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: err.message } });
-        return;
-      }
-      console.error('Appointment partner response error:', err);
-      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update response' } });
-    }
-  }
 }
 
 module.exports = { AppointmentController };

@@ -1,12 +1,12 @@
 import { useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Button, Modal } from '../components/Common';
-import { CreateAppointmentModal } from '../components/CreateAppointmentModal';
+import { AppointmentModal } from '../components/CreateAppointmentModal';
 import { GroupSelectorModal } from '../components/GroupSelectorModal';
 import { Appointment } from '../types';
 import { useAppointments, useCreateAppointment, useDeleteAppointment } from '../hooks/useAppointments';
 import { useAuth } from '../context/AuthContext';
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, MoreVertical } from 'lucide-react';
 import { lookupService } from '../services/lookupService';
 import { appointmentService } from '../services/appointmentService';
 import { useInvestees } from '../hooks/useInvestees';
@@ -44,6 +44,7 @@ export const AppointmentsPage = () => {
     const [completingAppointmentId, setCompletingAppointmentId] = useState<string | null>(null);
     const [completionMeta, setCompletionMeta] = useState<{ date: string; start: string; end: string } | null>(null);
     const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
+    const [statusMenuPosition, setStatusMenuPosition] = useState<{ top: number; left: number } | null>(null);
     const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
     const [attendanceRows, setAttendanceRows] = useState<Array<{ partner_id: string; partner_name: string; choice: AttendanceChoice }>>([]);
 
@@ -57,7 +58,6 @@ export const AppointmentsPage = () => {
     const { data: appointmentTypes = [] } = useQuery({
         queryKey: ['appointment-types'],
         queryFn: () => lookupService.listAppointmentTypes(),
-        enabled: showCreateModal,
     });
     const { data: groupTypes = [] } = useQuery({
         queryKey: ['group-types'],
@@ -134,6 +134,7 @@ export const AppointmentsPage = () => {
         const detail = await appointmentService.get(appt.appointment_id);
         setEditingAppointmentId(detail.appointment.appointment_id);
         setInitialFormData({
+            appointment_name: detail.appointment.appointment_name || '',
             meeting_date: detail.appointment.occurrence_date.split('T')[0],
             planned_start: formatTimeInput(detail.appointment.start_at),
             planned_end: formatTimeInput(detail.appointment.end_at),
@@ -247,12 +248,12 @@ export const AppointmentsPage = () => {
                 <div className="flex gap-2">
                                 <Button onClick={openCreateModal}><Plus size={20} /> Add New</Button>
                                 <div className="relative">
-                                    <button
+                                    <Button
+                                        variant="secondary"
                                         onClick={() => fileInputRef.current?.click?.()}
-                                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors border rounded-lg bg-surfaceHighlight/30 text-text border-surfaceHighlight hover:bg-surfaceHighlight"
                                     >
                                         Import
-                                    </button>
+                                    </Button>
                                     <input
                                         type="file"
                                         accept=".csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -388,7 +389,7 @@ export const AppointmentsPage = () => {
                                         onClick={() => navigate(`/appointments/${appt.appointment_id}`)}
                                     >
                                         <td className="px-4 py-4 text-sm font-medium text-text">
-                                            {appt.appointment_name || appointmentTypes.find(t => t.appointment_type_id === appt.appointment_type_id)?.type_name || 'Appointment'}
+                                            {(appt.appointment_name || '').trim() || appointmentTypes.find(t => t.appointment_type_id === appt.appointment_type_id)?.type_name || 'Appointment'}
                                         </td>
                                         <td className="px-4 py-4 text-sm text-text">{formatDate(appt.occurrence_date)}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{formatTime(appt.start_at)} – {formatTime(appt.end_at)}</td>
@@ -421,17 +422,36 @@ export const AppointmentsPage = () => {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        setStatusMenuFor((prev) => (prev === appt.appointment_id ? null : appt.appointment_id));
+                                                        const trigger = e.currentTarget;
+                                                        const rect = trigger.getBoundingClientRect();
+                                                        const menuWidth = 208; // min-w-52
+                                                        const maxLeft = window.innerWidth - menuWidth - 8;
+                                                        const left = Math.max(8, Math.min(rect.right - menuWidth, maxLeft));
+                                                        const nextPosition = {
+                                                            top: rect.bottom + 6,
+                                                            left,
+                                                        };
+
+                                                        setStatusMenuFor((prev) => {
+                                                            if (prev === appt.appointment_id) {
+                                                                setStatusMenuPosition(null);
+                                                                return null;
+                                                            }
+
+                                                            setStatusMenuPosition(nextPosition);
+                                                            return appt.appointment_id;
+                                                        });
                                                     }}
                                                     className="p-1.5 text-textMuted hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors"
                                                     title="Complete / Status"
                                                 >
-                                                    <CheckCircle2 size={16} />
+                                                    <MoreVertical size={16} />
                                                 </button>
 
-                                                {statusMenuFor === appt.appointment_id && (
+                                                {statusMenuFor === appt.appointment_id && statusMenuPosition && (
                                                     <div
-                                                        className="absolute right-0 top-8 z-20 min-w-52 bg-surface border border-surfaceHighlight rounded-lg shadow-lg p-1"
+                                                        className="fixed z-50 min-w-52 bg-surface border border-surfaceHighlight rounded-lg shadow-lg p-1"
+                                                        style={{ top: statusMenuPosition.top, left: statusMenuPosition.left }}
                                                         onClick={(e) => e.stopPropagation()}
                                                     >
                                                         {(normalizeStatus(appt.status) === 'PENDING' || normalizeStatus(appt.status) === 'SCHEDULED') && (
@@ -522,7 +542,7 @@ export const AppointmentsPage = () => {
             </Modal>
 
             {/* Create Modal */}
-            <CreateAppointmentModal
+            <AppointmentModal
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
                 onSubmit={async (formData, selectedPartnerIds) => {

@@ -45,12 +45,14 @@ export async function getAttendanceByPartner(
 export async function getMetricsByCategory(
   fromMonth: string,
   toMonth: string,
-  partnerId?: string
+  partnerId?: string,
+  appointmentTypeId?: string
 ): Promise<AnalyticsCategory[]> {
   const qs = new URLSearchParams();
   qs.set('from_month', fromMonth);
   qs.set('to_month', toMonth);
   if (partnerId) qs.set('partner_id', partnerId);
+  if (appointmentTypeId) qs.set('appointment_type_id', appointmentTypeId);
 
   const res = await api.get<AnalyticsResponse<AnalyticsCategory>>(
     `/analytics/metrics-by-category?${qs.toString()}`
@@ -67,12 +69,14 @@ export async function getMetricsByCategory(
 export async function getMonthlyEngagement(
   fromMonth: string,
   toMonth: string,
-  investeeId?: string
+  investeeId?: string,
+  appointmentTypeId?: string
 ): Promise<AnalyticsMonthlyVideo[]> {
   const qs = new URLSearchParams();
   qs.set('from_month', fromMonth);
   qs.set('to_month', toMonth);
   if (investeeId) qs.set('investee_id', investeeId);
+  if (appointmentTypeId) qs.set('appointment_type_id', appointmentTypeId);
 
   const res = await api.get<AnalyticsResponse<AnalyticsMonthlyVideo>>(
     `/analytics/monthly-engagement?${qs.toString()}`
@@ -87,11 +91,13 @@ export async function getMonthlyEngagement(
  */
 export async function getInvesteeAnalytics(
   fromMonth: string,
-  toMonth: string
+  toMonth: string,
+  appointmentTypeId?: string
 ): Promise<AnalyticsInvestee[]> {
   const qs = new URLSearchParams();
   qs.set('from_month', fromMonth);
   qs.set('to_month', toMonth);
+  if (appointmentTypeId) qs.set('appointment_type_id', appointmentTypeId);
 
   const res = await api.get<AnalyticsResponse<AnalyticsInvestee>>(
     `/analytics/investee-analytics?${qs.toString()}`

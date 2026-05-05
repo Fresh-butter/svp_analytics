@@ -116,7 +116,7 @@ npm run db:seed
 - `PUT /api/groups/:id/partners`
   - Overwrite partners success
   - Duplicate partner payload -> `409`
-  - Out-of-range partner/group dates -> validation failure
+  - Invalid date order (`start_date > end_date`) -> validation failure
 - `DELETE /api/groups/:id` (referenced `409`, unreferenced `200`)
 
 ## Appointments

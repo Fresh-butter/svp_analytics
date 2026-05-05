@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Button } from '../components/Common';
 import { RecurringAppointment, AppointmentType } from '../types';
-import { CreateRecurringModal } from '../components/CreateRecurringModal';
+import { RecurringAppointmentModal } from '../components/CreateRecurringModal';
 import { RecurringFormState } from '../hooks/useAppointmentForm';
 import { useRecurringAppointments, useCreateRecurringAppointment, useUpdateRecurringAppointment, useDeleteRecurringAppointment } from '../hooks/useRecurringAppointments';
 import { rruleToHuman } from '../mappers';
@@ -143,10 +143,7 @@ export const RecurringAppointmentsPage = () => {
                 investee_id: formData.investee_id || undefined,
             };
 
-            const isGroupTemplate = Boolean(formData.group_id);
-            const partnerIdsForSubmit = isGroupTemplate
-                ? (editingId ? [] : undefined)
-                : selectedPartnerIds;
+            const partnerIdsForSubmit = selectedPartnerIds;
 
             if (editingId) {
                 await updateRecurring.mutateAsync({
@@ -244,7 +241,7 @@ export const RecurringAppointmentsPage = () => {
             </Card>
 
             {/* Create/Edit Modal */}
-            <CreateRecurringModal
+            <RecurringAppointmentModal
                 isOpen={showCreateModal}
                 onClose={() => {
                     setShowCreateModal(false);

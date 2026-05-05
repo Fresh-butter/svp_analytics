@@ -3,25 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, Button, Modal } from '../components/Common';
+import { EntityFilters } from '../components/EntityFilters';
 import { Investee } from '../types';
 import { investeeFormSchema, InvesteeFormData } from '../schemas/formSchemas';
 import { useAuth } from '../context/AuthContext';
-import { Search, Filter, Download, Plus, Pencil, FileSpreadsheet, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { matchesSearchMulti } from '../utils/search';
-import { useCreateInvestee, useInvestees, useUpdateInvestee } from '../hooks/useInvestees';
+import { useCreateInvestee, useDeleteInvestee, useInvestees, useUpdateInvestee } from '../hooks/useInvestees';
 import { SortIndicator } from '../components/SortIndicator';
 import { matchesDateRange } from '../utils/dateFilters';
-import { exportJsonToXlsx, exportTableToPdf } from '../utils/exporters';
+import { exportJsonToXlsx } from '../utils/exporters';
 
 const PAGE_SIZE = 15;
 
 export const InvesteesPage = () => {
     const { user } = useAuth();
+    const isAdmin = user?.user_type === 'ADMIN';
     const navigate = useNavigate();
     const chapterId = user?.chapter_id || '';
     const { data: investees = [], isLoading } = useInvestees();
     const createInvesteeMutation = useCreateInvestee();
     const updateInvesteeMutation = useUpdateInvestee();
+    const deleteInvesteeMutation = useDeleteInvestee();
     const [searchTerm, setSearchTerm] = useState('');
     const [page, setPage] = useState(1);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,7 +34,7 @@ export const InvesteesPage = () => {
     const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
     const [endDateFilter, setEndDateFilter] = useState({ start: '', end: '' });
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
-    const [showExportOptions, setShowExportOptions] = useState(false);
+    const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
     const { register, handleSubmit, reset, formState: { errors } } = useForm<InvesteeFormData>({
         resolver: zodResolver(investeeFormSchema),
@@ -41,6 +44,9 @@ export const InvesteesPage = () => {
     // Filter Logic
     const filtered = investees.filter(inv => {
         const searchMatch = matchesSearchMulti(searchTerm, inv.investee_name, inv.email);
+
+        if (activeFilter === 'active' && !inv.is_active) return false;
+        if (activeFilter === 'inactive' && inv.is_active) return false;
 
         // Start date range filter
         const matchesStartRange = matchesDateRange(inv.start_date, dateFilter);
@@ -71,28 +77,17 @@ export const InvesteesPage = () => {
     };
 
     const handleExportExcel = async () => {
-        // Export without internal IDs
-        await exportJsonToXlsx(filteredInvestees.map(inv => ({
-            Name: inv.investee_name,
+        const exportRows = filteredInvestees.map((inv) => ({
+            'Investee Name': inv.investee_name,
             Email: inv.email,
             'Start Date': inv.start_date,
             'End Date': inv.end_date || '-',
-            'Status': inv.is_active ? 'Active' : 'Inactive'
-        })), 'Investees', 'investees_export.xlsx');
-    };
+            'Is Active': inv.is_active ? 'Yes' : 'No',
+            'Created At': inv.created_at || '-',
+            'Modified At': inv.modified_at || '-',
+        }));
 
-    const handleExportPDF = async () => {
-        await exportTableToPdf({
-            title: 'Investees List',
-            columns: ['Name', 'Email', 'Start Date', 'End Date'],
-            rows: filteredInvestees.map((inv) => [
-                inv.investee_name,
-                inv.email,
-                inv.start_date,
-                inv.end_date || '-',
-            ]),
-            fileName: 'investees_export.pdf',
-        });
+        await exportJsonToXlsx(exportRows, 'Investees', 'investees_export.xlsx');
     };
 
     const totalPages = Math.ceil(filteredInvestees.length / PAGE_SIZE);
@@ -129,122 +124,69 @@ export const InvesteesPage = () => {
         }
     };
 
+    const handleDeleteInvestee = async (investee: Investee) => {
+        const shouldTryDelete = window.confirm('This will delete only if the investee is not referenced. Do you want to continue?');
+        if (!shouldTryDelete) return;
+
+        try {
+            await deleteInvesteeMutation.mutateAsync(investee.investee_id);
+            return;
+        } catch (err: unknown) {
+            if (!investee.is_active) {
+                alert(err instanceof Error ? err.message : 'Unable to delete investee.');
+                return;
+            }
+        }
+
+        const shouldSoftDelete = window.confirm('Investee could not be deleted because it is referenced. Do you want to soft delete by setting End Date to today?');
+        if (!shouldSoftDelete) return;
+
+        try {
+            const today = new Date().toLocaleDateString('en-CA');
+            await updateInvesteeMutation.mutateAsync({
+                id: investee.investee_id,
+                data: {
+                    investee_name: investee.investee_name,
+                    email: investee.email,
+                    start_date: investee.start_date,
+                    end_date: today,
+                },
+                chapterId,
+            });
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : 'Failed to soft delete investee.');
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-3xl font-bold text-text">Investees</h2>
-                    <p className="text-textMuted mt-1">Manage investees and their information.</p>
+                    <p className="text-textMuted mt-1">
+                        {isAdmin
+                            ? 'Manage investees and their information.'
+                            : 'Browse investees and view their details.'}
+                    </p>
                 </div>
-                <Button onClick={handleOpenAdd}><Plus size={20} /> Add Investee</Button>
+                {isAdmin && <Button onClick={handleOpenAdd}><Plus size={20} /> Add Investee</Button>}
             </div>
 
             <Card className="bg-surface border-surfaceHighlight">
-                <div className="p-4 border-b border-surfaceHighlight flex flex-col md:flex-row gap-4 justify-between">
-                    <div className="relative w-full md:w-96">
-                        <Search className="absolute left-3 top-2.5 text-textMuted" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Search by name or email..."
-                            className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg pl-10 pr-4 py-2 text-text outline-none focus:border-primary transition-colors"
-                            value={searchTerm}
-                            onChange={e => { setSearchTerm(e.target.value); setPage(1); }}
-                        />
-                    </div>
-                    <div className="flex gap-2 relative">
-                        <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className={`flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors border rounded-lg ${showFilters ? 'bg-surfaceHighlight text-text border-primary' : 'bg-surfaceHighlight/30 text-text border-surfaceHighlight hover:bg-surfaceHighlight'}`}
-                        >
-                            <Filter size={16} />
-                            Filters
-                        </button>
-
-                        <div className="relative">
-                            <button
-                                onClick={() => setShowExportOptions(!showExportOptions)}
-                                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors border rounded-lg ${showExportOptions ? 'bg-surfaceHighlight text-text border-primary' : 'bg-surfaceHighlight/30 text-text border-surfaceHighlight hover:bg-surfaceHighlight'}`}
-                            >
-                                <Download size={16} />
-                                Export
-                            </button>
-                            {showExportOptions && (
-                                <div className="absolute right-0 mt-2 w-48 bg-surface border border-surfaceHighlight rounded-lg shadow-lg z-10 py-1">
-                                    <button
-                                        onClick={() => { handleExportExcel(); setShowExportOptions(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-text hover:bg-surfaceHighlight flex items-center gap-2"
-                                    >
-                                        <FileSpreadsheet size={16} className="text-green-500" />
-                                        Export as Excel
-                                    </button>
-                                    <button
-                                        onClick={() => { handleExportPDF(); setShowExportOptions(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-text hover:bg-surfaceHighlight flex items-center gap-2"
-                                    >
-                                        <FileText size={16} className="text-red-500" />
-                                        Export as PDF
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {showFilters && (
-                    <div className="p-4 border-b border-surfaceHighlight bg-surfaceHighlight/10 flex flex-col gap-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-medium text-textMuted mb-1">Start Date From</label>
-                                <input
-                                    type="date"
-                                    className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary"
-                                    value={dateFilter.start}
-                                    onChange={(e) => setDateFilter({ ...dateFilter, start: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-textMuted mb-1">Start Date To</label>
-                                <input
-                                    type="date"
-                                    className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary"
-                                    value={dateFilter.end}
-                                    onChange={(e) => setDateFilter({ ...dateFilter, end: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-medium text-textMuted mb-1">End Date From</label>
-                                <input
-                                    type="date"
-                                    className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary"
-                                    value={endDateFilter.start}
-                                    onChange={(e) => setEndDateFilter({ ...endDateFilter, start: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-textMuted mb-1">End Date To</label>
-                                <input
-                                    type="date"
-                                    className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary"
-                                    value={endDateFilter.end}
-                                    onChange={(e) => setEndDateFilter({ ...endDateFilter, end: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div className="flex justify-end">
-                            <button
-                                onClick={() => {
-                                    setDateFilter({ start: '', end: '' });
-                                    setEndDateFilter({ start: '', end: '' });
-                                }}
-                                className="text-sm text-textMuted hover:text-text transition-colors"
-                            >
-                                Clear Filters
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <EntityFilters
+                    searchTerm={searchTerm}
+                    onSearchTermChange={(value) => { setSearchTerm(value); setPage(1); }}
+                    searchPlaceholder="Search by name or email..."
+                    showFilters={showFilters}
+                    onToggleFilters={() => setShowFilters(!showFilters)}
+                    onExport={handleExportExcel}
+                    dateFilter={dateFilter}
+                    onDateFilterChange={setDateFilter}
+                    endDateFilter={endDateFilter}
+                    onEndDateFilterChange={setEndDateFilter}
+                    activeFilter={activeFilter}
+                    onActiveFilterChange={setActiveFilter}
+                />
 
                 <div className="overflow-x-auto">
                     {isLoading ? (
@@ -279,7 +221,7 @@ export const InvesteesPage = () => {
                                     >
                                         End Date <SortIndicator sortConfig={sortConfig} column="end_date" />
                                     </th>
-                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider text-right">Actions</th>
+                                    {isAdmin && <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider text-right">Actions</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-surfaceHighlight">
@@ -300,15 +242,24 @@ export const InvesteesPage = () => {
                                         <td className="px-4 py-4 text-sm text-textMuted">{inv.email}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{new Date(inv.start_date + 'T00:00:00').toLocaleDateString()}</td>
                                         <td className="px-4 py-4 text-sm text-textMuted">{inv.end_date ? new Date(inv.end_date + 'T00:00:00').toLocaleDateString() : '-'}</td>
-                                        <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
-                                            <button
-                                                onClick={() => handleOpenEdit(inv)}
-                                                className="p-1.5 text-textMuted hover:text-primary hover:bg-surfaceHighlight rounded-md transition-colors"
-                                                title="Edit"
-                                            >
-                                                <Pencil size={16} />
-                                            </button>
-                                        </td>
+                                        {isAdmin && (
+                                            <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
+                                                <button
+                                                    onClick={() => handleOpenEdit(inv)}
+                                                    className="p-1.5 text-textMuted hover:text-primary hover:bg-surfaceHighlight rounded-md transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <Pencil size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteInvestee(inv)}
+                                                    className="p-1.5 text-textMuted hover:text-red-400 hover:bg-surfaceHighlight rounded-md transition-colors"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>

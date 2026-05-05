@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ChevronDown } from 'lucide-react';
@@ -27,7 +28,7 @@ export const Modal = ({
   bodyClassName?: string,
 }) => {
   if (!isOpen) return null;
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className={twMerge(clsx("bg-surface border border-surfaceHighlight rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar", panelClassName))}>
         <div className="flex items-center justify-between p-6 border-b border-surfaceHighlight">
@@ -42,6 +43,9 @@ export const Modal = ({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return modalContent;
+  return createPortal(modalContent, document.body);
 };
 
 export const Button = ({ 

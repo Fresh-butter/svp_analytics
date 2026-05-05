@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import { SharedAnalyticsTable, Column, BarCell } from './SharedAnalyticsTable';
 import type { AnalyticsMonthlyVideo } from './analyticsTypes';
+import type { Investee } from '../../types';
 
 
 // Generate months from Jan 2023 to current month
@@ -25,56 +25,47 @@ interface Props {
     toMonth: string;
     onFromMonthChange: (value: string) => void;
     onToMonthChange: (value: string) => void;
+    investees: Investee[];
+    investeeId: string;
+    onInvesteeChange: (value: string) => void;
 }
 
 export const MonthlyEngagement = ({
-    data: allData,
+    data,
     fromMonth,
     toMonth,
     onFromMonthChange,
     onToMonthChange,
+    investees,
+    investeeId,
+    onInvesteeChange,
 }: Props) => {
-    const [categoryFilter, setCategoryFilter] = useState('');
-    const [investeeFilter, setInvesteeFilter] = useState('');
-
-    const filteredData = useMemo(() => {
-        return allData.filter(d => {
-            const matchesCategory = categoryFilter ? d.category === categoryFilter : true;
-            const matchesInvestee = investeeFilter ? d.investee_name === investeeFilter : true;
-            return matchesCategory && matchesInvestee;
-        });
-    }, [allData, categoryFilter, investeeFilter]);
-
-
-
-
     const columns: Column<AnalyticsMonthlyVideo>[] = [
         { header: 'Month', accessor: 'month', sortable: true },
         {
             header: 'Meetings', accessor: 'meetings_count', sortable: true,
-            render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.meetings_count), 1)} color="bg-blue-500" />
+            render: (v) => <BarCell value={v} max={Math.max(...data.map(d => d.meetings_count), 1)} color="bg-blue-500" />
         },
         {
             header: 'Meetings Accepted', accessor: 'meetings_accepted', sortable: true,
-            render: (v) => <BarCell value={Number(v) || 0} max={Math.max(...filteredData.map(d => d.meetings_accepted || 0), 1)} color="bg-indigo-500" />
+            render: (v) => <BarCell value={Number(v) || 0} max={Math.max(...data.map(d => d.meetings_accepted || 0), 1)} color="bg-indigo-500" />
         },
         {
             header: 'Distinct Partners', accessor: 'distinct_partners_engaged', sortable: true,
-            render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.distinct_partners_engaged), 1)} color="bg-emerald-500" />
+            render: (v) => <BarCell value={v} max={Math.max(...data.map(d => d.distinct_partners_engaged), 1)} color="bg-emerald-500" />
         },
-        { header: 'Appointment Type', accessor: 'category', sortable: true },
         { header: 'Attendance %', accessor: 'attendance_percentage', sortable: true, render: (v) => <BarCell value={typeof v === 'number' ? v : (Number(v) || 0)} max={100} color="bg-amber-500" /> },
     ];
 
     const chartData = {
-        labels: filteredData.map(d => {
+        labels: data.map(d => {
             const [y, m] = d.month.split('-');
             return new Date(+y, +m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
         }),
         datasets: [
             {
                 label: 'Meetings',
-                data: filteredData.map(d => d.meetings_count),
+                data: data.map(d => d.meetings_count),
                 borderColor: 'rgb(59, 130, 246)',
                 backgroundColor: 'rgba(59, 130, 246, 0.12)',
                 borderWidth: 2.5,
@@ -89,7 +80,7 @@ export const MonthlyEngagement = ({
             },
             {
                 label: 'Distinct Partners',
-                data: filteredData.map(d => d.distinct_partners_engaged),
+                data: data.map(d => d.distinct_partners_engaged),
                 borderColor: 'rgb(16, 185, 129)',
                 backgroundColor: 'rgba(16, 185, 129, 0.08)',
                 borderWidth: 2.5,
@@ -105,14 +96,11 @@ export const MonthlyEngagement = ({
         ],
     };
 
-    const uniqueCategories = Array.from(new Set(allData.map(d => d.category)));
-    const uniqueInvestees = Array.from(new Set(allData.map(d => d.investee_name)));
-
     return (
         <div className="space-y-6">
 
             {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-surfaceHighlight/10 p-4 rounded-lg border border-surfaceHighlight">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-surfaceHighlight/10 p-4 rounded-lg border border-surfaceHighlight">
                 <div>
                     <label className="block text-xs font-medium text-textMuted mb-1">From Month</label>
                     <select
@@ -134,25 +122,16 @@ export const MonthlyEngagement = ({
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-textMuted mb-1">Appointment Type</label>
-                    <select
-                        className="w-full bg-surface border border-surfaceHighlight rounded-lg px-3 py-2 text-sm text-text"
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                    >
-                        <option value="">All Appointment Types</option>
-                        {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                </div>
-                <div>
                     <label className="block text-xs font-medium text-textMuted mb-1">Investee</label>
                     <select
                         className="w-full bg-surface border border-surfaceHighlight rounded-lg px-3 py-2 text-sm text-text"
-                        value={investeeFilter}
-                        onChange={(e) => setInvesteeFilter(e.target.value)}
+                        value={investeeId}
+                        onChange={(e) => onInvesteeChange(e.target.value)}
                     >
                         <option value="">All Investees</option>
-                        {uniqueInvestees.map(i => <option key={i} value={i}>{i}</option>)}
+                        {investees.map((inv) => (
+                            <option key={inv.investee_id} value={inv.investee_id}>{inv.investee_name}</option>
+                        ))}
                     </select>
                 </div>
             </div>
@@ -167,7 +146,7 @@ export const MonthlyEngagement = ({
                             ...chartData.datasets,
                             {
                                 label: 'Attendance %',
-                                data: filteredData.map(d => d.attendance_percentage ?? (d.meetings_accepted ? (Number(d.meetings_attended ?? 0) / d.meetings_accepted) * 100 : 0)),
+                                data: data.map(d => d.attendance_percentage ?? (d.meetings_accepted ? (Number(d.meetings_attended ?? 0) / d.meetings_accepted) * 100 : 0)),
                                 borderColor: 'rgb(245, 158, 11)',
                                 backgroundColor: 'rgba(245, 158, 11, 0.08)',
                                 yAxisID: 'y1',
@@ -212,7 +191,7 @@ export const MonthlyEngagement = ({
             </div>
 
             {/* Table */}
-            <SharedAnalyticsTable data={filteredData} columns={columns} defaultSort="month" />
+            <SharedAnalyticsTable data={data} columns={columns} defaultSort="month" />
         </div>
     );
 };

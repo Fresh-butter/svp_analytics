@@ -4,7 +4,7 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 
-router.get('/', authenticate, requireAdmin, (req, res) => {
+router.get('/', authenticate, (req, res) => {
   // #swagger.tags = ['Investees']
   // #swagger.summary = 'List all investees'
   // #swagger.description = 'Returns investees for a chapter. Supports filtering by active status.'
@@ -26,7 +26,7 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
   return InvesteeController.list(req, res);
 });
 
-router.get('/:id', authenticate, requireAdmin, (req, res) => {
+router.get('/:id', authenticate, (req, res) => {
   // #swagger.tags = ['Investees']
   // #swagger.summary = 'Get investee by ID'
   // #swagger.description = 'Returns an investee with groups and appointment details. Optionally filtered by month and year.'

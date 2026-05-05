@@ -142,7 +142,6 @@ export const CalendarPage = () => {
   // Modals
   const [isAppModalOpen, setIsAppModalOpen] = useState(false);
   const [isRecModalOpen, setIsRecModalOpen] = useState(false);
-  const [showExportOptions, setShowExportOptions] = useState(false);
 
   // Appointment/Recurring form state via hooks
   const appointmentForm = useAppointmentForm();
@@ -242,7 +241,7 @@ export const CalendarPage = () => {
           chapter_id: String(chapterId),
           meeting_date: format(defaultDate, 'yyyy-MM-dd'),
           group_id: groupId,
-          });
+        });
         setIsAppModalOpen(true);
       }
     }
@@ -385,10 +384,7 @@ export const CalendarPage = () => {
         investee_id: formData.investee_id || undefined,
       };
 
-      const isGroupTemplate = Boolean(formData.group_id);
-      const partnerIdsForSubmit = isGroupTemplate
-        ? (formData.rec_app_id ? [] : undefined)
-        : selectedPartnerIds;
+      const partnerIdsForSubmit = selectedPartnerIds;
 
       if (formData.rec_app_id) {
         await recurringAppointmentService.update(formData.rec_app_id, payload, String(chapterId), partnerIdsForSubmit);
@@ -406,13 +402,17 @@ export const CalendarPage = () => {
   const handleViewDetail = (app: Appointment) => {
     const appointmentId = getAppointmentId(app);
     if (!appointmentId) return;
-    navigate(`/appointments/${appointmentId}`);
+    navigate(isPartner ? `/my-appointments/appointment/${appointmentId}` : `/appointments/${appointmentId}`);
   };
 
   const handleViewRecurringDetail = (rec: RecurringAppointment, _occurrenceDate?: Date) => {
-    if (isPartner) return;
     const recurringId = getRecurringId(rec);
     if (!recurringId) return;
+    if (isPartner) {
+      const occurrenceDate = _occurrenceDate ? format(_occurrenceDate, 'yyyy-MM-dd') : undefined;
+      navigate(`/my-appointments/recurring/${recurringId}${occurrenceDate ? `?occurrence_date=${occurrenceDate}` : ''}`);
+      return;
+    }
     navigate(`/recurring-appointments/${recurringId}`);
   };
 
@@ -426,8 +426,8 @@ export const CalendarPage = () => {
     const data: Array<Record<string, string>> = monthEvents.map(e => ({
       'Meeting Type': e.meeting_type || 'Appointment',
       'Date': e.meeting_date || '',
-      'Start': e.planned_start || '',
-      'End': e.planned_end || '',
+      'Start': e.start_at || e.planned_start || '',
+      'End': e.end_at || e.planned_end || '',
       'Status': e.status || '',
       'Group': groups.find(g => g.group_id === e.group_id)?.group_name || '-',
       'Investee': investees.find(iv => iv.investee_id === e.investee_id)?.investee_name || '-',
@@ -457,70 +457,17 @@ export const CalendarPage = () => {
     XLSX.writeFile(workbook, `calendar_${format(currentMonth, 'yyyy-MM')}.xlsx`);
   };
 
-  const handleExportEventsPDF = async () => {
-    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-      import('jspdf'),
-      import('jspdf-autotable'),
-    ]);
-    const monthEvents = appointments.filter(e => {
-      if (!e.meeting_date) return false;
-      const d = parseLocalDate(e.meeting_date);
-      return isSameMonth(d, currentMonth);
-    });
-    const doc = new jsPDF();
-    doc.text(`Calendar Events - ${format(currentMonth, 'MMMM yyyy')}`, 14, 15);
-    const rows: string[][] = monthEvents.map(e => [
-      e.meeting_type || 'Appointment',
-      e.meeting_date || '',
-      `${e.planned_start || ''} - ${e.planned_end || ''}`,
-      e.status || '',
-      groups.find(g => g.group_id === e.group_id)?.group_name || '-',
-    ]);
-    // Add recurring events
-    const monthStart2 = startOfMonth(currentMonth);
-    const monthEnd2 = endOfMonth(currentMonth);
-    const monthDays = eachDayOfInterval({ start: monthStart2, end: monthEnd2 });
-    recurringApps.forEach(rec => {
-      monthDays.forEach(day => {
-        if (isRecurringOccurrence(rec, day)) {
-          rows.push([
-            `${rec.meeting_type} (Recurring)`,
-            format(day, 'yyyy-MM-dd'),
-            '-',
-            'Recurring',
-            groups.find(g => g.group_id === rec.group_id)?.group_name || '-',
-          ]);
-        }
-      });
-    });
-    autoTable(doc, {
-      head: [['Meeting Type', 'Date', 'Time', 'Status', 'Group']],
-      body: rows,
-      startY: 20,
-    });
-    doc.save(`calendar_${format(currentMonth, 'yyyy-MM')}.pdf`);
-  };
-
   return (
     <div className="space-y-6">
       <CalendarToolbar
         currentMonth={currentMonth}
         selectedDate={selectedDate}
         calendarView={calendarView}
-        showExportOptions={showExportOptions}
         onToggleView={setCalendarView}
         onToday={resetToToday}
         onPrevMonth={prevMonth}
         onNextMonth={nextMonth}
-        onToggleExportOptions={() => setShowExportOptions((prev) => !prev)}
-        onExportExcel={() => {
-          handleExportEventsExcel();
-          setShowExportOptions(false);
-        }}
-        onExportPDF={() => {
-          handleExportEventsPDF();
-          setShowExportOptions(false);
-        }}
+        onExportExcel={handleExportEventsExcel}
         onOpenAddEvent={handleOpenAddApp}
         onOpenAddRecurring={handleOpenAddRec}
         canEdit={!isPartner}
@@ -529,6 +476,7 @@ export const CalendarPage = () => {
       {/* =================== GRID VIEW =================== */}
       {calendarView === 'grid' && (
         <CalendarGridView
+          isPartner={isPartner}
           days={days}
           monthStart={monthStart}
           selectedDate={selectedDate}
@@ -547,6 +495,7 @@ export const CalendarPage = () => {
       {/* =================== LIST VIEW =================== */}
       {calendarView === 'list' && (
         <CalendarListView
+          isPartner={isPartner}
           currentMonth={currentMonth}
           appointments={appointments}
           recurringApps={recurringApps}

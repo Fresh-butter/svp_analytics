@@ -211,28 +211,6 @@ router.patch('/:id/complete', authenticate, (req, res) => {
     return AppointmentController.complete(req, res);
 });
 
-router.patch('/:id/respond', authenticate, (req, res) => {
-    // #swagger.tags = ['Appointments']
-    // #swagger.summary = 'Partner response for upcoming meeting'
-    // #swagger.description = 'Partner can mark planned attendance as PRESENT or ABSENT for assigned appointments.'
-    /* #swagger.security = [{ "bearerAuth": [] }] */
-    /* #swagger.requestBody = {
-         required: true,
-         content: {
-           "application/json": {
-             schema: {
-               type: 'object',
-               required: ['response_status'],
-               properties: {
-                 response_status: { type: 'string', enum: ['PRESENT', 'ABSENT'] }
-               }
-             }
-           }
-         }
-       } */
-    return AppointmentController.respond(req, res);
-});
-
 router.delete('/:id', authenticate, (req, res) => {
     // #swagger.tags = ['Appointments']
     // #swagger.summary = 'Delete an appointment'

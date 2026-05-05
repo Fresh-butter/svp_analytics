@@ -73,6 +73,12 @@ router.get('/metrics-by-category', authenticate, (req, res) => {
        format: 'uuid',
        description: 'Optional partner filter'
      } */
+  /* #swagger.parameters['appointment_type_id'] = {
+       in: 'query',
+       type: 'string',
+       format: 'uuid',
+       description: 'Optional appointment type filter'
+     } */
   /* #swagger.responses[200] = {
        description: 'Category metrics data'
      } */
@@ -104,6 +110,12 @@ router.get('/monthly-engagement', authenticate, (req, res) => {
        format: 'uuid',
        description: 'Optional investee filter'
      } */
+  /* #swagger.parameters['appointment_type_id'] = {
+       in: 'query',
+       type: 'string',
+       format: 'uuid',
+       description: 'Optional appointment type filter'
+     } */
   /* #swagger.responses[200] = {
        description: 'Monthly engagement data'
      } */
@@ -128,6 +140,12 @@ router.get('/investee-analytics', authenticate, (req, res) => {
        type: 'string',
        format: 'YYYY-MM',
        description: 'End month (format: YYYY-MM)'
+     } */
+  /* #swagger.parameters['appointment_type_id'] = {
+       in: 'query',
+       type: 'string',
+       format: 'uuid',
+       description: 'Optional appointment type filter'
      } */
   /* #swagger.responses[200] = {
        description: 'Investee analytics data'

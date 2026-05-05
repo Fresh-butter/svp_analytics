@@ -31,6 +31,17 @@ interface DetailResponse {
       end_at: string;
       status: string;
     }>;
+    recurring_appointments?: Array<{
+      rec_appointment_id: string;
+      appointment_name?: string | null;
+      appointment_type_id?: string | null;
+      appointment_type?: string | null;
+      start_time: string;
+      duration_minutes: number;
+      rrule?: string | null;
+      start_date: string;
+      end_date?: string | null;
+    }>;
   };
 }
 

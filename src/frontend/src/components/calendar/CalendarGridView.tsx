@@ -6,6 +6,7 @@ import { Appointment, Group, Investee, RecurringAppointment } from '../../types'
 type Holiday = { date: string; name: string };
 
 type Props = {
+  isPartner?: boolean;
   days: Date[];
   monthStart: Date;
   selectedDate: Date;
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export const CalendarGridView = ({
+  isPartner = false,
   days,
   monthStart,
   selectedDate,
@@ -34,12 +36,27 @@ export const CalendarGridView = ({
   onViewDetail,
   onViewRecurringDetail,
 }: Props) => {
+  const normalizeStatus = (status?: string | null) => String(status || '').trim().toUpperCase();
+  const statusLabel = (status?: string | null) => {
+    const normalized = normalizeStatus(status);
+    if (normalized === 'PENDING' || normalized === 'SCHEDULED') return 'Scheduled';
+    if (normalized === 'COMPLETED') return 'Completed';
+    if (normalized === 'CANCELLED' || normalized === 'CANCELED') return 'Cancelled';
+    return status || '-';
+  };
+  const statusTone = (status?: string | null) => {
+    const normalized = normalizeStatus(status);
+    if (normalized === 'COMPLETED') return 'bg-green-500/20 text-green-400';
+    if (normalized === 'CANCELLED' || normalized === 'CANCELED') return 'bg-red-500/20 text-red-400';
+    return 'bg-yellow-500/20 text-yellow-400';
+  };
+
   const renderEventCard = (event: Appointment, i: number) => (
     <div key={i} className="p-3 bg-surfaceHighlight rounded-lg border border-surfaceHighlight hover:border-sidebarTextActive transition-colors group relative cursor-pointer" onClick={() => onViewDetail(event)}>
       <div className="flex justify-between items-start mb-1">
         <span className="font-semibold text-text text-left">{event.meeting_type}</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ml-2 ${event.status === 'Completed' ? 'bg-green-500/20 text-green-400' : event.status === 'Cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
-          {event.status}
+        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ml-2 ${statusTone(event.status)}`}>
+          {statusLabel(event.status)}
         </span>
       </div>
       <div className="text-xs text-textMuted space-y-0.5">
@@ -100,13 +117,32 @@ export const CalendarGridView = ({
 
                 <div className="mt-2 text-xs space-y-1">
                   {events.map((event, i) => (
-                    <div key={`a${i}`} onClick={(e) => { e.stopPropagation(); onViewDetail(event); }} className={`px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 transition-opacity ${event.rec_app_id ? 'bg-blue-500/20 text-blue-300 border-blue-500' : event.status === 'Cancelled' ? 'bg-red-500/20 text-red-300 border-red-500 line-through' : 'bg-primary/20 text-primary border-primary'}`}>
+                    <div
+                      key={`a${i}`}
+                      onClick={(e) => { e.stopPropagation(); onViewDetail(event); }}
+                      className={`px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 transition-opacity ${
+                        normalizeStatus(event.status) === 'COMPLETED'
+                          ? 'bg-green-500/20 text-green-300 border-green-500'
+                          : normalizeStatus(event.status) === 'CANCELLED' || normalizeStatus(event.status) === 'CANCELED'
+                            ? 'bg-red-500/20 text-red-300 border-red-500 line-through'
+                            : 'bg-yellow-500/20 text-yellow-300 border-yellow-500'
+                      }`}
+                    >
                       {event.planned_start} {event.meeting_type}
                     </div>
                   ))}
                   {recEvents.map((rec, i) => (
-                    <div key={`r${i}`} onClick={(e) => { e.stopPropagation(); onViewRecurringDetail(rec, day); }} className="px-1.5 py-0.5 rounded border-l-2 truncate bg-violet-500/20 text-violet-300 border-violet-500 cursor-pointer hover:opacity-80 transition-opacity">
-                      <Repeat size={9} className="inline mr-1" />{rec.planned_start ? `${rec.planned_start} ` : ''}{rec.meeting_type || 'Recurring'}
+                    <div
+                      key={`r${i}`}
+                      onClick={(e) => { e.stopPropagation(); onViewRecurringDetail(rec, day); }}
+                      className={`px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 transition-opacity ${
+                        isPartner
+                          ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500'
+                          : 'bg-violet-500/20 text-violet-300 border-violet-500'
+                      }`}
+                    >
+                      {!isPartner && <Repeat size={9} className="inline mr-1" />}
+                      {rec.planned_start ? `${rec.planned_start} ` : ''}{rec.meeting_type || 'Appointment'}
                     </div>
                   ))}
                 </div>
@@ -144,15 +180,25 @@ export const CalendarGridView = ({
                 <>
                   {dayEvents.map((event, i) => renderEventCard(event, i))}
                   {dayRecurring.map((rec, i) => (
-                    <div key={`rec-${i}`} className="p-3 bg-violet-500/10 rounded-lg border border-violet-500/30 cursor-pointer hover:border-violet-400 transition-colors" onClick={() => onViewRecurringDetail(rec, selectedDate)}>
+                    <div
+                      key={`rec-${i}`}
+                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                        isPartner
+                          ? 'bg-yellow-500/10 border-yellow-500/30 hover:border-yellow-400'
+                          : 'bg-violet-500/10 border-violet-500/30 hover:border-violet-400'
+                      }`}
+                      onClick={() => onViewRecurringDetail(rec, selectedDate)}
+                    >
                       <div className="flex items-center gap-2 mb-1">
-                        <Repeat size={14} className="text-violet-400" />
-                        <span className="font-semibold text-text text-sm">{rec.meeting_type || 'Recurring Event'}</span>
+                        {!isPartner && <Repeat size={14} className="text-violet-400" />}
+                        <span className="font-semibold text-text text-sm">{rec.meeting_type || 'Appointment'}</span>
                       </div>
                       {(rec.planned_start || rec.planned_end) && (
                         <div className="text-xs text-textMuted flex items-center gap-1.5 mb-0.5"><Clock size={12} /><span>{rec.planned_start || '-'} - {rec.planned_end || '-'}</span></div>
                       )}
-                      <p className="text-xs text-textMuted">{rec.frequency} series · {groups.find((g) => g.group_id === rec.group_id)?.group_name || 'Unknown Group'}</p>
+                      <p className="text-xs text-textMuted">
+                        {isPartner ? 'Scheduled' : `${rec.frequency} series`} · {groups.find((g) => g.group_id === rec.group_id)?.group_name || 'Unknown Group'}
+                      </p>
                       {rec.investee_id && <p className="text-xs text-textMuted mt-0.5">{investees.find((iv) => iv.investee_id === rec.investee_id)?.investee_name || 'Unknown Investee'}</p>}
                     </div>
                   ))}

@@ -26,10 +26,32 @@ class GroupController {
     try {
       const group = await GroupRepository.findByIdWithDetails(req.params.id);
       if (!group) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Group not found' } }); return; }
+
+      if (req.user?.user_type === 'PARTNER') {
+        group.recurring_appointments = [];
+      }
+
       res.json({ success: true, data: group });
     } catch (err) {
       console.error('Get group error:', err);
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch group' } });
+    }
+  }
+
+  /** GET /groups/mine/ids — active group ids for authenticated partner */
+  static async myGroupIds(req, res) {
+    try {
+      if (req.user?.user_type !== 'PARTNER') {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only partners can access this resource' } });
+      }
+
+      const partner_id = req.user?.partner_id;
+      const chapter_id = req.user?.chapter_id;
+      const ids = await GroupRepository.findActiveGroupIdsForPartner(partner_id, chapter_id);
+      return res.json({ success: true, data: ids });
+    } catch (err) {
+      console.error('Get partner group ids error:', err);
+      return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch partner groups' } });
     }
   }
 

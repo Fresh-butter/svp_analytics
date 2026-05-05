@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { SharedAnalyticsTable, Column, BarCell } from './SharedAnalyticsTable';
 import type { AnalyticsCategory } from './analyticsTypes';
@@ -45,9 +45,7 @@ export const MetricsByCategory = ({
     // Chart Metric Selector
     const [selectedMetric, setSelectedMetric] = useState<'meetings' | 'hours' | 'distinct_partners' | 'avg_duration_minutes' | 'attendance'>('hours');
 
-    const filteredData = useMemo(() => {
-        return categoryData;
-    }, [categoryData]);
+    const filteredData = categoryData;
 
     const columns: Column<AnalyticsCategory>[] = [
         { header: 'Appointment Type', accessor: 'category', sortable: true },

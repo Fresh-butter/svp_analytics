@@ -4,12 +4,16 @@ import { Card, Button, Modal } from '../components/Common';
 import { groupService } from '../services/groupService';
 import { partnerService } from '../services/partnerService';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, Users, Plus, Pencil } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Pencil, Repeat, Clock } from 'lucide-react';
 import PartnerSelectorModal from '../components/PartnerSelectorModal';
 import { Partner, Group } from '../types';
-import { formatDate } from '../utils/formatters';
+import { formatDate, formatTime } from '../utils/formatters';
 import { ActiveStatusBadge } from '../components/StatusBadge';
 import { DASHBOARD_AUTO_REFRESH_MS } from '../constants/refresh';
+import { navigateBack } from '../utils/navigation';
+import { rruleToHuman } from '../mappers';
+import { useQuery } from '@tanstack/react-query';
+import { lookupService } from '../services/lookupService';
 
 type GroupMember = {
     group_partner_id: string;
@@ -21,13 +25,27 @@ type GroupMember = {
     is_active: boolean;
 };
 
+type GroupRecurring = {
+    rec_appointment_id: string;
+    appointment_name?: string | null;
+    appointment_type_id?: string | null;
+    start_time: string;
+    duration_minutes: number;
+    rrule?: string | null;
+    start_date: string;
+    end_date?: string | null;
+};
+
 export const GroupViewPage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const isAdmin = user?.user_type === 'ADMIN';
+    const isPartner = user?.user_type === 'PARTNER';
     const chapterId = user?.chapter_id || '';
     const [group, setGroup] = useState<Group | null>(null);
     const [members, setMembers] = useState<GroupMember[]>([]);
+    const [recurringAppointments, setRecurringAppointments] = useState<GroupRecurring[]>([]);
     const [investee, setInvestee] = useState<{ investee_id: string; investee_name: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -40,6 +58,20 @@ export const GroupViewPage = () => {
     const [editEndDate, setEditEndDate] = useState('');
     const [editError, setEditError] = useState('');
 
+    const { data: appointmentTypes = [] } = useQuery({
+        queryKey: ['appointment-types'],
+        queryFn: () => lookupService.listAppointmentTypes(),
+    });
+
+    const getRecurringName = (r: GroupRecurring) => {
+        if (r.appointment_name) return r.appointment_name;
+        if (r.appointment_type_id) {
+            const typeName = appointmentTypes.find((t) => t.appointment_type_id === r.appointment_type_id)?.type_name;
+            if (typeName) return typeName;
+        }
+        return 'Recurring Appointment';
+    };
+
     const fetchData = useCallback(async (showLoading = false) => {
         if (!id) return;
         try {
@@ -47,6 +79,7 @@ export const GroupViewPage = () => {
             const res = await groupService.getWithMembers(id);
             setGroup(res.group);
             setMembers(res.members);
+            setRecurringAppointments(res.recurring_appointments || []);
             setInvestee(res.investee || null);
         } catch (err) {
             console.error('Error fetching group:', err);
@@ -101,21 +134,6 @@ export const GroupViewPage = () => {
             return;
         }
 
-        // Validate against group dates
-        if (group) {
-            const groupStart = group.start_date.includes('T') ? group.start_date.split('T')[0] : group.start_date;
-            const groupEnd = group.end_date ? (group.end_date.includes('T') ? group.end_date.split('T')[0] : group.end_date) : null;
-
-            if (editStartDate < groupStart) {
-                setEditError(`Start date cannot be before group start date (${formatDate(groupStart)})`);
-                return;
-            }
-            if (groupEnd && editEndDate && editEndDate > groupEnd) {
-                setEditError(`End date cannot be after group end date (${formatDate(groupEnd)})`);
-                return;
-            }
-        }
-
         try {
             // Build updated partner list keeping all members but updating the edited one
             const updatedPartners = members.map(m => {
@@ -145,8 +163,8 @@ export const GroupViewPage = () => {
 
     return (
         <div className="space-y-6">
-            <button onClick={() => navigate('/groups')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
-                <ArrowLeft size={16} /> Back to Groups
+            <button onClick={() => navigateBack(navigate, '/groups')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
+                <ArrowLeft size={16} /> Back
             </button>
 
             {/* Header */}
@@ -160,7 +178,18 @@ export const GroupViewPage = () => {
                         <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-textMuted">
                             <span>Start: {formatDate(group.start_date)}</span>
                             {group.end_date && <span>End: {formatDate(group.end_date)}</span>}
-                            {investee && <span>Investee: {investee.investee_name}</span>}
+                            {investee && (
+                                <span>
+                                    Investee:{' '}
+                                    <button
+                                        type="button"
+                                        className="text-primary hover:underline"
+                                        onClick={() => navigate(`/investees/${investee.investee_id}`)}
+                                    >
+                                        {investee.investee_name}
+                                    </button>
+                                </span>
+                            )}
                         </div>
                         <ActiveStatusBadge active={!!group.is_active} className="mt-2" />
                     </div>
@@ -174,9 +203,11 @@ export const GroupViewPage = () => {
                         <Users size={18} className="text-primary" />
                         <h3 className="font-semibold text-text">Members ({members.length})</h3>
                     </div>
-                    <Button onClick={openAddModal}>
-                        <Plus size={16} /> Edit Partners
-                    </Button>
+                    {isAdmin && (
+                        <Button onClick={openAddModal}>
+                            <Plus size={16} /> Edit Partners
+                        </Button>
+                    )}
                 </div>
                 {members.length > 0 ? (
                     <div className="overflow-x-auto">
@@ -188,7 +219,7 @@ export const GroupViewPage = () => {
                                     <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Start</th>
                                     <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">End</th>
                                     <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Status</th>
-                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase text-right">Actions</th>
+                                    {isAdmin && <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase text-right">Actions</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-surfaceHighlight">
@@ -201,15 +232,17 @@ export const GroupViewPage = () => {
                                         <td className="px-4 py-3">
                                             <ActiveStatusBadge active={!!m.is_active} />
                                         </td>
-                                        <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                                            <button
-                                                onClick={() => handleOpenEditMember(m)}
-                                                className="p-1.5 text-textMuted hover:text-primary hover:bg-surfaceHighlight rounded-md transition-colors"
-                                                title="Edit dates"
-                                            >
-                                                <Pencil size={16} />
-                                            </button>
-                                        </td>
+                                        {isAdmin && (
+                                            <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                                                <button
+                                                    onClick={() => handleOpenEditMember(m)}
+                                                    className="p-1.5 text-textMuted hover:text-primary hover:bg-surfaceHighlight rounded-md transition-colors"
+                                                    title="Edit dates"
+                                                >
+                                                    <Pencil size={16} />
+                                                </button>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>
@@ -219,6 +252,49 @@ export const GroupViewPage = () => {
                     <div className="p-8 text-center text-textMuted">No members in this group yet.</div>
                 )}
             </Card>
+
+            {!isPartner && (
+            <Card className="bg-surface border-surfaceHighlight">
+                <div className="p-4 border-b border-surfaceHighlight flex items-center gap-2">
+                    <Repeat size={18} className="text-primary" />
+                    <h3 className="font-semibold text-text">Recurring Appointments ({recurringAppointments.length})</h3>
+                </div>
+                {recurringAppointments.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b border-surfaceHighlight bg-surfaceHighlight/20">
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Name</th>
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Pattern</th>
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Time</th>
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">Start</th>
+                                    <th className="px-4 py-3 text-xs font-semibold text-textMuted uppercase">End</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surfaceHighlight">
+                                {recurringAppointments.map((r) => (
+                                    <tr
+                                        key={r.rec_appointment_id}
+                                        className="hover:bg-surfaceHighlight/30 transition-colors cursor-pointer"
+                                        onClick={() => navigate(`/recurring-appointments/${r.rec_appointment_id}`)}
+                                    >
+                                        <td className="px-4 py-3 text-sm text-text">{getRecurringName(r)}</td>
+                                        <td className="px-4 py-3 text-sm text-textMuted">{r.rrule ? rruleToHuman(r.rrule) : '-'}</td>
+                                        <td className="px-4 py-3 text-sm text-textMuted">
+                                            <span className="inline-flex items-center gap-1"><Clock size={12} /> {formatTime(r.start_time)}</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-sm text-textMuted">{formatDate(r.start_date)}</td>
+                                        <td className="px-4 py-3 text-sm text-textMuted">{formatDate(r.end_date)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="p-8 text-center text-textMuted">No recurring appointments linked to this group.</div>
+                )}
+            </Card>
+            )}
 
             {/* Edit Partners (uses PartnerSelectorModal) */}
             <PartnerSelectorModal

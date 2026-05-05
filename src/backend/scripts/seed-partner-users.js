@@ -53,7 +53,7 @@ async function seedPartnerUsers() {
         },
         update: {
           user_type: 'PARTNER',
-          ...(supportsUserIsActive ? { is_active: false } : {}),
+          ...(supportsUserIsActive ? { is_active: true } : {}),
           name: partner.partner_name,
           password_hash,
           ...(supportsUserPartnerLink ? { partner_id: partner.partner_id } : {}),
@@ -61,7 +61,7 @@ async function seedPartnerUsers() {
         create: {
           chapter_id: partner.chapter_id,
           user_type: 'PARTNER',
-          ...(supportsUserIsActive ? { is_active: false } : {}),
+          ...(supportsUserIsActive ? { is_active: true } : {}),
           name: partner.partner_name,
           email: partner.email,
           password_hash,

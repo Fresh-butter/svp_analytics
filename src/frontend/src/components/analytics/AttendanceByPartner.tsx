@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { SharedAnalyticsTable, Column, BarCell } from './SharedAnalyticsTable';
 import type { AnalyticsPartner } from './analyticsTypes';
+import type { AppointmentType } from '../../types';
+import type { Investee } from '../../types';
 
 
 
@@ -40,6 +42,12 @@ interface Props {
     toMonth: string;
     onFromMonthChange: (value: string) => void;
     onToMonthChange: (value: string) => void;
+    appointmentTypes: AppointmentType[];
+    appointmentTypeId: string;
+    onAppointmentTypeChange: (value: string) => void;
+    investees: Investee[];
+    investeeId: string;
+    onInvesteeChange: (value: string) => void;
 }
 
 export const AttendanceByPartner = ({
@@ -48,18 +56,14 @@ export const AttendanceByPartner = ({
     toMonth,
     onFromMonthChange,
     onToMonthChange,
+    appointmentTypes,
+    appointmentTypeId,
+    onAppointmentTypeChange,
+    investees,
+    investeeId,
+    onInvesteeChange,
 }: Props) => {
-    const [categoryFilter, setCategoryFilter] = useState('');
-    const [investeeFilter, setInvesteeFilter] = useState('');
     const [chartView, setChartView] = useState<'meetings' | 'hours' | 'attendance'>('meetings');
-
-    const filteredData = useMemo(() => {
-        return allData.filter(p => {
-            const matchesCategory = categoryFilter ? p.category === categoryFilter : true;
-            const matchesInvestee = investeeFilter ? p.investee_name === investeeFilter : true;
-            return matchesCategory && matchesInvestee;
-        });
-    }, [allData, categoryFilter, investeeFilter]);
 
 
 
@@ -70,15 +74,15 @@ export const AttendanceByPartner = ({
         { header: 'Investee', accessor: 'investee_name', sortable: true },
         {
             header: 'Meetings Attended', accessor: 'meetings_attended', sortable: true,
-            render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.meetings_attended), 1)} color="bg-blue-500" />
+            render: (v) => <BarCell value={v} max={Math.max(...allData.map(d => d.meetings_attended), 1)} color="bg-blue-500" />
         },
         {
             header: 'Meetings Accepted', accessor: 'meetings_accepted', sortable: true,
-            render: (v) => <BarCell value={Number(v) || 0} max={Math.max(...filteredData.map(d => d.meetings_accepted || 0), 1)} color="bg-indigo-500" />
+            render: (v) => <BarCell value={Number(v) || 0} max={Math.max(...allData.map(d => d.meetings_accepted || 0), 1)} color="bg-indigo-500" />
         },
         {
             header: 'Hours Spent', accessor: 'hours_spent', sortable: true,
-            render: (v) => <BarCell value={v} max={Math.max(...filteredData.map(d => d.hours_spent), 1)} color="bg-emerald-500" />
+            render: (v) => <BarCell value={v} max={Math.max(...allData.map(d => d.hours_spent), 1)} color="bg-emerald-500" />
         },
         {
             header: 'Attendance %', accessor: 'attendance_percentage', sortable: true,
@@ -88,22 +92,19 @@ export const AttendanceByPartner = ({
     ];
 
     const chartData = {
-        labels: filteredData.map(d => d.partner_name),
+        labels: allData.map(d => d.partner_name),
         datasets: [
             {
                 label: chartView === 'meetings' ? 'Meetings Attended' : 'Hours Spent',
-                data: filteredData.map(d => chartView === 'meetings' ? d.meetings_attended : d.hours_spent),
-                backgroundColor: filteredData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length]),
-                borderColor: filteredData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length].replace('0.8', '1')),
+                data: allData.map(d => chartView === 'meetings' ? d.meetings_attended : d.hours_spent),
+                backgroundColor: allData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length]),
+                borderColor: allData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length].replace('0.8', '1')),
                 borderWidth: 0,
                 borderRadius: 8,
                 borderSkipped: false,
             },
         ],
     };
-
-    const uniqueCategories = Array.from(new Set(allData.map(p => p.category)));
-    const uniqueInvestees = Array.from(new Set(allData.map(p => p.investee_name)));
 
     return (
         <div className="space-y-6">
@@ -134,22 +135,26 @@ export const AttendanceByPartner = ({
                     <label className="block text-xs font-medium text-textMuted mb-1">Appointment Type</label>
                     <select
                         className="w-full bg-surface border border-surfaceHighlight rounded-lg px-3 py-2 text-sm text-text"
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        value={appointmentTypeId}
+                        onChange={(e) => onAppointmentTypeChange(e.target.value)}
                     >
                         <option value="">All Appointment Types</option>
-                        {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                        {appointmentTypes.map((t) => (
+                            <option key={t.appointment_type_id} value={t.appointment_type_id}>{t.type_name}</option>
+                        ))}
                     </select>
                 </div>
                 <div>
                     <label className="block text-xs font-medium text-textMuted mb-1">Investee</label>
                     <select
                         className="w-full bg-surface border border-surfaceHighlight rounded-lg px-3 py-2 text-sm text-text"
-                        value={investeeFilter}
-                        onChange={(e) => setInvesteeFilter(e.target.value)}
+                        value={investeeId}
+                        onChange={(e) => onInvesteeChange(e.target.value)}
                     >
                         <option value="">All Investees</option>
-                        {uniqueInvestees.map(i => <option key={i} value={i}>{i}</option>)}
+                        {investees.map((inv) => (
+                            <option key={inv.investee_id} value={inv.investee_id}>{inv.investee_name}</option>
+                        ))}
                     </select>
                 </div>
             </div>
@@ -182,13 +187,13 @@ export const AttendanceByPartner = ({
                                     datasets: [
                                         {
                                             label: 'Attendance %',
-                                            data: filteredData.map(d => {
+                                            data: allData.map(d => {
                                                 if (typeof d.attendance_percentage === 'number') return d.attendance_percentage;
                                                 if (d.meetings_accepted && d.meetings_accepted > 0) return (d.meetings_attended / d.meetings_accepted) * 100;
                                                 return 0;
                                             }),
-                                            backgroundColor: filteredData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length]),
-                                            borderColor: filteredData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length].replace('0.8', '1')),
+                                            backgroundColor: allData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length]),
+                                            borderColor: allData.map((_, i) => PARTNER_COLORS[i % PARTNER_COLORS.length].replace('0.8', '1')),
                                             borderWidth: 0,
                                             borderRadius: 8,
                                             borderSkipped: false,
@@ -224,7 +229,7 @@ export const AttendanceByPartner = ({
             </div>
 
             {/* Table */}
-            <SharedAnalyticsTable data={filteredData} columns={columns} defaultSort="meetings_attended" />
+            <SharedAnalyticsTable data={allData} columns={columns} defaultSort="meetings_attended" />
         </div>
     );
 };

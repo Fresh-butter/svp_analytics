@@ -11,7 +11,11 @@ class AuthController {
         return;
       }
       const result = await AuthService.login(email, password, chapter_id);
-      if (result?.error?.code === 'PARTNER_INACTIVE') {
+      if (result?.error?.code === 'CHAPTER_MISMATCH') {
+        res.status(400).json({ success: false, error: { code: result.error.code, message: result.error.message } });
+        return;
+      }
+      if (result?.error?.code === 'PARTNER_LOCKED') {
         res.status(403).json({ success: false, error: { code: result.error.code, message: result.error.message } });
         return;
       }
@@ -39,12 +43,19 @@ class AuthController {
         res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Email is required' } });
         return;
       }
-      const result = await AuthService.forgotPassword(email);
+      await AuthService.forgotPassword(email);
       // Always return same message to prevent email enumeration
-      res.json({ success: true, data: { message: 'If that email exists, a new password has been sent.' } });
+      res.json({ success: true, data: { message: 'If that email exists, a password reset OTP has been sent.' } });
     } catch (err) {
+      if (err.code === 'EMAIL_NOT_CONFIGURED') {
+        res.status(503).json({ success: false, error: { code: 'EMAIL_NOT_CONFIGURED', message: err.message } });
+        return;
+      }
+      if (err.code === 'EMAIL_SEND_FAILED') {
+        res.status(503).json({ success: false, error: { code: 'EMAIL_SEND_FAILED', message: err.message } });
+        return;
+      }
       console.error('Forgot password error:', err);
-      // For debugging in development, send the exact message
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to process request' } });
     }
   }
@@ -75,25 +86,28 @@ class AuthController {
     }
   }
 
-  /** POST /auth/partner-activation/request */
-  static async requestPartnerActivation(req, res) {
+  /** POST /auth/partner-registration/request */
+  static async requestPartnerRegistration(req, res) {
     try {
       const { email, chapter_id } = req.body;
       if (!email || !chapter_id) {
         res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Email and chapter_id are required' } });
         return;
       }
-      const result = await AuthService.requestPartnerActivation(email, chapter_id);
+      await AuthService.requestPartnerRegistration(email, chapter_id);
       res.json({
         success: true,
         data: {
-          message: 'Partner account has been activated. Password has been sent to the partner email.',
-          ...(result?.temporary_password ? { temporary_password: result.temporary_password } : {}),
+          message: 'If the partner account exists, a temporary password has been sent to the partner email.',
         },
       });
     } catch (err) {
       if (err.code === 'NOT_FOUND') {
         res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: err.message } });
+        return;
+      }
+      if (err.code === 'LOCKED') {
+        res.status(403).json({ success: false, error: { code: 'LOCKED', message: err.message } });
         return;
       }
       if (err.code === 'VALIDATION') {
@@ -104,33 +118,37 @@ class AuthController {
         res.status(503).json({ success: false, error: { code: 'EMAIL_NOT_CONFIGURED', message: err.message } });
         return;
       }
-      console.error('Request partner activation error:', err);
-      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to request activation' } });
+      if (err.code === 'EMAIL_SEND_FAILED') {
+        res.status(503).json({ success: false, error: { code: 'EMAIL_SEND_FAILED', message: err.message } });
+        return;
+      }
+      console.error('Request partner registration error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to request registration' } });
     }
   }
 
-  /** POST /auth/partner-activation/complete */
-  static async completePartnerActivation(req, res) {
+  /** POST /auth/forgot-password/complete */
+  static async completeForgotPassword(req, res) {
     try {
-      const { token, password } = req.body;
-      if (!token || !password) {
-        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'token and password are required' } });
+      const { email, otp, password } = req.body;
+      if (!email || !otp || !password) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'email, otp and password are required' } });
         return;
       }
 
-      await AuthService.completePartnerActivation(token, password);
-      res.json({ success: true, data: { message: 'Account activated successfully. You can now log in.' } });
+      await AuthService.completeForgotPassword(email, otp, password);
+      res.json({ success: true, data: { message: 'Password reset successful. You can now log in.' } });
     } catch (err) {
-      if (err.code === 'INVALID_TOKEN') {
-        res.status(400).json({ success: false, error: { code: 'INVALID_TOKEN', message: err.message } });
+      if (err.code === 'INVALID_OTP') {
+        res.status(400).json({ success: false, error: { code: 'INVALID_OTP', message: err.message } });
         return;
       }
-      if (err.code === 'NOT_FOUND') {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: err.message } });
+      if (err.code === 'INVALID_PASSWORD') {
+        res.status(400).json({ success: false, error: { code: 'INVALID_PASSWORD', message: err.message } });
         return;
       }
-      console.error('Complete partner activation error:', err);
-      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to activate account' } });
+      console.error('Complete forgot password error:', err);
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to reset password' } });
     }
   }
 }

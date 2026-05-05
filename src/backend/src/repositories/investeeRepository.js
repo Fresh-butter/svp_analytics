@@ -65,6 +65,20 @@ class InvesteeRepository {
         groups: {
           select: { group_id: true, group_name: true, group_type_id: true, start_date: true, end_date: true },
         },
+        recurring_appointments: {
+          select: {
+            rec_appointment_id: true,
+            appointment_name: true,
+            appointment_type_id: true,
+            appointment_types: { select: { type_name: true } },
+            start_time: true,
+            duration_minutes: true,
+            rrule: true,
+            start_date: true,
+            end_date: true,
+          },
+          orderBy: { start_date: 'asc' },
+        },
         appointments: {
           where: {
             occurrence_date: { gte: parseLocalDate(fmtDate(utcToday())) }
@@ -90,6 +104,18 @@ class InvesteeRepository {
       end_at: fmtTime(a.end_at),
       duration_minutes: a.duration_minutes,
       status: a.status,
+    }));
+
+    formatted.recurring_appointments = investee.recurring_appointments.map((r) => ({
+      rec_appointment_id: r.rec_appointment_id,
+      appointment_name: r.appointment_name || null,
+      appointment_type_id: r.appointment_type_id || null,
+      appointment_type: r.appointment_types?.type_name || null,
+      start_time: fmtTime(r.start_time),
+      duration_minutes: r.duration_minutes,
+      rrule: r.rrule,
+      start_date: fmtDate(r.start_date),
+      end_date: fmtDate(r.end_date),
     }));
 
     return formatted;

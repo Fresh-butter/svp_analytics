@@ -31,7 +31,11 @@ interface MeResponse {
 
 export const authService = {
   async login(payload: LoginPayload): Promise<{ token: string; user: AuthUser }> {
-    const res = await api.post<LoginResponse>('/auth/login', payload);
+    const res = await api.post<LoginResponse>('/auth/login', {
+      email: payload.email.trim(),
+      password: payload.password,
+      chapter_id: payload.chapter_id.trim(),
+    });
     setToken(res.data.token);
     return res.data;
   },
@@ -54,16 +58,16 @@ export const authService = {
     return res.data.message;
   },
 
-  async requestPartnerActivation(payload: { email: string; chapter_id: string }): Promise<{ message: string; temporary_password?: string }> {
-    const res = await api.post<{ success: boolean; data: { message: string; temporary_password?: string } }>(
-      '/auth/partner-activation/request',
+  async completeForgotPassword(payload: { email: string; otp: string; password: string }): Promise<string> {
+    const res = await api.post<{ success: boolean; data: { message: string } }>('/auth/forgot-password/complete', payload);
+    return res.data.message;
+  },
+
+  async requestPartnerRegistration(payload: { email: string; chapter_id: string }): Promise<{ message: string }> {
+    const res = await api.post<{ success: boolean; data: { message: string } }>(
+      '/auth/partner-registration/request',
       payload
     );
     return res.data;
-  },
-
-  async completePartnerActivation(payload: { token: string; password: string }): Promise<string> {
-    const res = await api.post<{ success: boolean; data: { message: string } }>('/auth/partner-activation/complete', payload);
-    return res.data.message;
   },
 };

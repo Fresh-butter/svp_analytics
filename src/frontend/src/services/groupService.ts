@@ -21,6 +21,16 @@ interface SingleResponse {
       partner_active: boolean;
     }>;
     investee_name?: string;
+    recurring_appointments?: Array<{
+      rec_appointment_id: string;
+      appointment_name?: string | null;
+      appointment_type_id?: string | null;
+      start_time: string;
+      duration_minutes: number;
+      rrule?: string | null;
+      start_date: string;
+      end_date?: string | null;
+    }>;
   };
 }
 
@@ -42,6 +52,11 @@ export const groupService = {
     return res.data.map(mapGroup);
   },
 
+  async getMyGroupIds(): Promise<string[]> {
+    const res = await api.get<{ success: boolean; data: string[] }>('/groups/mine/ids');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
   async getWithMembers(id: string): Promise<{
     group: Group;
     members: Array<{
@@ -52,6 +67,16 @@ export const groupService = {
       start_date: string;
       end_date: string | null;
       is_active: boolean;
+    }>;
+    recurring_appointments: Array<{
+      rec_appointment_id: string;
+      appointment_name?: string | null;
+      appointment_type_id?: string | null;
+      start_time: string;
+      duration_minutes: number;
+      rrule?: string | null;
+      start_date: string;
+      end_date?: string | null;
     }>;
     investee?: { investee_id: string; investee_name: string } | null;
   }> {
@@ -71,7 +96,12 @@ export const groupService = {
       ? { investee_id: res.data.investee_id, investee_name: res.data.investee_name }
       : null;
 
-    return { group, members, investee };
+    return {
+      group,
+      members,
+      recurring_appointments: res.data.recurring_appointments || [],
+      investee,
+    };
   },
 
   async create(data: Partial<Group>, chapterId: string): Promise<Group> {

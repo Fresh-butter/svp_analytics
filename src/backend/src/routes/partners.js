@@ -4,7 +4,7 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 
-router.get('/', authenticate, requireAdmin, (req, res) => {
+router.get('/', authenticate, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'List all partners'
   // #swagger.description = 'Returns partners for a chapter. Supports filtering by active status and primary flag.'
@@ -31,7 +31,7 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
   return PartnerController.list(req, res);
 });
 
-router.get('/:id', authenticate, requireAdmin, (req, res) => {
+router.get('/:id', authenticate, (req, res) => {
   // #swagger.tags = ['Partners']
   // #swagger.summary = 'Get partner by ID'
   // #swagger.description = 'Returns a partner with groups and appointment details. Optionally filtered by month and year.'

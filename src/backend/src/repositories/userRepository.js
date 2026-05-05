@@ -17,7 +17,10 @@ function sanitizeUserWriteData(data) {
 
 class UserRepository {
   static async findByEmail(email, chapter_id) {
-    const where = { email };
+    const normalizedEmail = String(email || '').trim();
+    const where = {
+      email: { equals: normalizedEmail, mode: 'insensitive' },
+    };
     if (chapter_id) where.chapter_id = chapter_id;
     const row = await prisma.users.findFirst({
       where,
@@ -28,6 +31,22 @@ class UserRepository {
       },
     });
     return formatRow(row);
+  }
+
+  static async findAllByEmail(email) {
+    const normalizedEmail = String(email || '').trim();
+    const rows = await prisma.users.findMany({
+      where: {
+        email: { equals: normalizedEmail, mode: 'insensitive' },
+      },
+      include: {
+        partner: {
+          select: { partner_id: true, partner_name: true, email: true },
+        },
+      },
+      orderBy: { created_at: 'asc' },
+    });
+    return rows.map(formatRow);
   }
 
   static async findById(id) {
@@ -44,13 +63,14 @@ class UserRepository {
 
   static async create(data) {
     const hash = await bcrypt.hash(data.password, 12);
+    const normalizedEmail = String(data.email || '').trim().toLowerCase();
     const row = await prisma.users.create({
       data: sanitizeUserWriteData({
         chapter_id: data.chapter_id,
         user_type: data.user_type,
         is_active: data.is_active ?? true,
         name: data.name,
-        email: data.email,
+        email: normalizedEmail,
         password_hash: hash,
         ...(data.partner_id ? { partner_id: data.partner_id } : {}),
       }),
@@ -103,6 +123,44 @@ class UserRepository {
       orderBy: { name: 'asc' },
     });
     return rows.map(formatRow);
+  }
+
+  static async findPartnersByChapter(chapter_id) {
+    const rows = await prisma.users.findMany({
+      where: { chapter_id, user_type: 'PARTNER' },
+      include: {
+        partner: {
+          select: { partner_id: true, partner_name: true, email: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return rows.map(formatRow);
+  }
+
+  static async findActivePartnersByChapter(chapter_id) {
+    const where = { chapter_id, user_type: 'PARTNER' };
+    if (prismaUserHasField('is_active')) {
+      where.is_active = true;
+    }
+
+    const rows = await prisma.users.findMany({
+      where,
+      include: {
+        partner: {
+          select: { partner_id: true, partner_name: true, email: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return rows.map(formatRow);
+  }
+
+  static async findByPartner(partner_id) {
+    const row = await prisma.users.findUnique({
+      where: { partner_id },
+    });
+    return row ? formatRow(row) : null;
   }
 
   static async deleteById(userId) {

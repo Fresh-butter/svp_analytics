@@ -1,25 +1,29 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, Button, Modal } from '../components/Common';
+import { EntityFilters } from '../components/EntityFilters';
 import { Group } from '../types';
 import { groupFormSchema, GroupFormData } from '../schemas/formSchemas';
 import { lookupService } from '../services/lookupService';
+import { groupService } from '../services/groupService';
 import { useAuth } from '../context/AuthContext';
-import { Search, Plus, Download, Filter, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { matchesSearchMulti } from '../utils/search';
 import { useQuery } from '@tanstack/react-query';
-import { useCreateGroup, useGroups, useUpdateGroup } from '../hooks/useGroups';
+import { useCreateGroup, useDeleteGroup, useGroups, useUpdateGroup } from '../hooks/useGroups';
 import { useInvestees } from '../hooks/useInvestees';
 import { SortIndicator } from '../components/SortIndicator';
 import { matchesDateRange } from '../utils/dateFilters';
-import { exportJsonToXlsx, exportTableToPdf } from '../utils/exporters';
+import { exportJsonToXlsx } from '../utils/exporters';
 
 const PAGE_SIZE = 15;
 
 export const GroupsPage = () => {
     const { user } = useAuth();
+    const isAdmin = user?.user_type === 'ADMIN';
+    const isPartner = user?.user_type === 'PARTNER';
     const navigate = useNavigate();
     const chapterId = user?.chapter_id || '';
     const { data: groups = [] } = useGroups();
@@ -28,8 +32,14 @@ export const GroupsPage = () => {
         queryKey: ['group-types'],
         queryFn: () => lookupService.listGroupTypes(),
     });
+    const { data: myGroupIds = [] } = useQuery({
+        queryKey: ['my-group-ids'],
+        queryFn: () => groupService.getMyGroupIds(),
+        enabled: isPartner,
+    });
     const createGroupMutation = useCreateGroup();
     const updateGroupMutation = useUpdateGroup();
+    const deleteGroupMutation = useDeleteGroup();
     const [searchTerm, setSearchTerm] = useState('');
     const [page, setPage] = useState(1);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,7 +47,8 @@ export const GroupsPage = () => {
     const [showFilters, setShowFilters] = useState(false);
     const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
     const [endDateFilter, setEndDateFilter] = useState({ start: '', end: '' });
-    const [showExportOptions, setShowExportOptions] = useState(false);
+    const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
+    const [exploreFilter, setExploreFilter] = useState<'my-groups' | 'all'>('my-groups');
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const { register, handleSubmit, reset, formState: { errors } } = useForm<GroupFormData>({
         resolver: zodResolver(groupFormSchema),
@@ -46,14 +57,23 @@ export const GroupsPage = () => {
 
     const loading = groupTypesLoading;
 
+    const myGroupIdSet = useMemo(() => new Set(myGroupIds), [myGroupIds]);
+
     const getGroupTypeName = (id?: string | null) => {
         if (!id) return '-';
         return groupTypes.find(t => t.group_type_id === id)?.type_name || '-';
     };
 
+    const groupsByExploreFilter = isPartner && exploreFilter === 'my-groups'
+        ? groups.filter((group) => myGroupIdSet.has(group.group_id))
+        : groups;
+
     // Filter Logic
-    const filtered = groups.filter(g => {
+    const filtered = groupsByExploreFilter.filter(g => {
         const searchMatch = matchesSearchMulti(searchTerm, g.group_name, getGroupTypeName(g.group_type_id));
+
+        if (activeFilter === 'active' && !g.is_active) return false;
+        if (activeFilter === 'inactive' && g.is_active) return false;
 
         // Start date range filter
         const matchesStartRange = matchesDateRange(g.start_date, dateFilter);
@@ -94,32 +114,51 @@ export const GroupsPage = () => {
     };
 
     const handleExportExcel = async () => {
-        const exportData = filteredGroups.map(g => ({
-            'Group Name': g.group_name,
-            'Type': getGroupTypeName(g.group_type_id),
-            'Start Date': new Date(g.start_date).toLocaleDateString(),
-            'End Date': g.end_date ? new Date(g.end_date).toLocaleDateString() : 'N/A'
-        }));
+        const detailedGroups = await Promise.all(
+            filteredGroups.map(async (group) => {
+                const details = await groupService.getWithMembers(group.group_id);
+                return { group, details };
+            })
+        );
 
-        await exportJsonToXlsx(exportData, 'Groups', `groups_${new Date().toISOString().split('T')[0]}.xlsx`);
-        setShowExportOptions(false);
-    };
+        const exportRows = detailedGroups.flatMap(({ group, details }) => {
+            const investeeName = details.investee?.investee_name
+                || investees.find((inv) => inv.investee_id === group.investee_id)?.investee_name
+                || '-';
 
-    const handleExportPDF = async () => {
-        await exportTableToPdf({
-            title: 'Groups Report',
-            columns: ['Group Name', 'Type', 'Start Date', 'End Date'],
-            rows: filteredGroups.map((g) => [
-                g.group_name,
-                getGroupTypeName(g.group_type_id),
-                new Date(g.start_date).toLocaleDateString(),
-                g.end_date ? new Date(g.end_date).toLocaleDateString() : 'N/A',
-            ]),
-            fileName: `groups_${new Date().toISOString().split('T')[0]}.pdf`,
-            generatedOn: new Date().toLocaleDateString(),
-            headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+            const baseGroupData = {
+                'Group Name': group.group_name,
+                'Group Type Name': getGroupTypeName(group.group_type_id),
+                'Investee Name': investeeName,
+                'Start Date': group.start_date,
+                'End Date': group.end_date || '-',
+                'Is Active': group.is_active ? 'Yes' : 'No',
+                'Created At': group.created_at || '-',
+                'Modified At': group.modified_at || '-',
+            };
+
+            if (!details.members.length) {
+                return [{
+                    ...baseGroupData,
+                    'Partner Name': '-',
+                    'Partner Email': '-',
+                    'Membership Start Date': '-',
+                    'Membership End Date': '-',
+                    'Membership Active': '-',
+                }];
+            }
+
+            return details.members.map((member) => ({
+                ...baseGroupData,
+                'Partner Name': member.partner_name,
+                'Partner Email': member.email,
+                'Membership Start Date': member.start_date,
+                'Membership End Date': member.end_date || '-',
+                'Membership Active': member.is_active ? 'Yes' : 'No',
+            }));
         });
-        setShowExportOptions(false);
+
+        await exportJsonToXlsx(exportRows, 'Groups', `groups_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     const handleOpenAdd = () => {
@@ -153,239 +192,226 @@ export const GroupsPage = () => {
         }
     };
 
+    const handleDeleteGroup = async (group: Group) => {
+        const shouldTryDelete = window.confirm('This will delete only if the group is not referenced. Do you want to continue?');
+        if (!shouldTryDelete) return;
+
+        try {
+            await deleteGroupMutation.mutateAsync(group.group_id);
+            return;
+        } catch (err: unknown) {
+            if (!group.is_active) {
+                alert(err instanceof Error ? err.message : 'Unable to delete group.');
+                return;
+            }
+        }
+
+        const shouldSoftDelete = window.confirm('Group could not be deleted because it is referenced. Do you want to soft delete by setting End Date to today?');
+        if (!shouldSoftDelete) return;
+
+        try {
+            const today = new Date().toLocaleDateString('en-CA');
+            await updateGroupMutation.mutateAsync({
+                id: group.group_id,
+                data: {
+                    group_name: group.group_name,
+                    group_type_id: group.group_type_id || undefined,
+                    start_date: group.start_date,
+                    end_date: today,
+                    investee_id: group.investee_id || undefined,
+                },
+                chapterId,
+            });
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : 'Failed to soft delete group.');
+        }
+    };
+
     return (
-    <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-                <h2 className="text-3xl font-bold text-text">Groups</h2>
-                <p className="text-textMuted mt-1">Manage groups and their members.</p>
-            </div>
-            <Button onClick={handleOpenAdd}><Plus size={20} /> Add Group</Button>
-        </div>
-
-        <Card className="bg-surface border-surfaceHighlight">
-            <div className="p-4 border-b border-surfaceHighlight flex flex-col md:flex-row gap-4 justify-between">
-                <div className="relative w-full md:w-96">
-                    <Search className="absolute left-3 top-2.5 text-textMuted" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Search by name or type..."
-                        className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg pl-10 pr-4 py-2 text-text outline-none focus:border-primary transition-colors"
-                        value={searchTerm}
-                        onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                    />
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-text">Groups</h2>
+                    <p className="text-textMuted mt-1">
+                        {isAdmin
+                            ? 'Manage groups and their members.'
+                            : 'Browse groups and view members.'}
+                    </p>
                 </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors border rounded-lg ${showFilters ? 'bg-surfaceHighlight text-text border-primary' : 'bg-surfaceHighlight/30 text-text border-surfaceHighlight hover:bg-surfaceHighlight'}`}
-                    >
-                        <Filter size={16} />
-                        Filter
-                    </button>
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowExportOptions(!showExportOptions)}
-                            className={`flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors border rounded-lg ${showExportOptions ? 'bg-surfaceHighlight text-text border-primary' : 'bg-surfaceHighlight/30 text-text border-surfaceHighlight hover:bg-surfaceHighlight'}`}
-                        >
-                            <Download size={16} />
-                            Export
-                        </button>
-                        {showExportOptions && (
-                            <div className="absolute right-0 mt-2 w-48 bg-surface border border-surfaceHighlight rounded-lg shadow-lg z-10 py-1">
-                                <button
-                                    onClick={handleExportExcel}
-                                    className="w-full text-left px-4 py-2 text-sm text-text hover:bg-surfaceHighlight transition-colors"
-                                >
-                                    Export as Excel
-                                </button>
-                                <button
-                                    onClick={handleExportPDF}
-                                    className="w-full text-left px-4 py-2 text-sm text-text hover:bg-surfaceHighlight transition-colors"
-                                >
-                                    Export as PDF
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                {isAdmin && <Button onClick={handleOpenAdd}><Plus size={20} /> Add Group</Button>}
             </div>
 
-            {showFilters && (
-                <div className="p-4 border-b border-surfaceHighlight bg-surfaceHighlight/5">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-sm font-semibold text-text">Advanced Filters</h3>
-                        <button
-                            onClick={() => {
-                                setSearchTerm('');
-                                setDateFilter({ start: '', end: '' });
-                                setEndDateFilter({ start: '', end: '' });
-                            }}
-                            className="text-xs text-primary hover:text-primary/80 transition-colors"
-                        >
-                            Clear All
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-xs font-semibold text-textMuted uppercase">Start Date Range</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="date"
-                                    value={dateFilter.start}
-                                    onChange={(e) => setDateFilter(prev => ({ ...prev, start: e.target.value }))}
-                                    className="w-full px-3 py-2 bg-surface border border-surfaceHighlight rounded-lg text-sm text-text focus:border-primary outline-none transition-colors"
-                                />
-                                <span className="text-textMuted self-center">to</span>
-                                <input
-                                    type="date"
-                                    value={dateFilter.end}
-                                    onChange={(e) => setDateFilter(prev => ({ ...prev, end: e.target.value }))}
-                                    className="w-full px-3 py-2 bg-surface border border-surfaceHighlight rounded-lg text-sm text-text focus:border-primary outline-none transition-colors"
-                                />
-                            </div>
+            <Card className="bg-surface border-surfaceHighlight">
+                <EntityFilters
+                    searchTerm={searchTerm}
+                    onSearchTermChange={(value) => { setSearchTerm(value); setPage(1); }}
+                    searchPlaceholder="Search by name or type..."
+                    showFilters={showFilters}
+                    onToggleFilters={() => setShowFilters(!showFilters)}
+                    onExport={handleExportExcel}
+                    dateFilter={dateFilter}
+                    onDateFilterChange={setDateFilter}
+                    endDateFilter={endDateFilter}
+                    onEndDateFilterChange={setEndDateFilter}
+                    activeFilter={activeFilter}
+                    onActiveFilterChange={setActiveFilter}
+                    filterLabel="Filter"
+                    inlineControls={isPartner ? (
+                        <div className="flex rounded-lg border border-surfaceHighlight overflow-hidden text-sm">
+                            <button
+                                type="button"
+                                onClick={() => { setExploreFilter('my-groups'); setPage(1); }}
+                                className={`px-3 py-1.5 transition-colors ${
+                                    exploreFilter === 'my-groups'
+                                        ? 'bg-primary text-white'
+                                        : 'bg-surfaceHighlight/30 text-textMuted hover:bg-surfaceHighlight'
+                                }`}
+                            >
+                                My Groups
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setExploreFilter('all'); setPage(1); }}
+                                className={`px-3 py-1.5 transition-colors ${
+                                    exploreFilter === 'all'
+                                        ? 'bg-primary text-white'
+                                        : 'bg-surfaceHighlight/30 text-textMuted hover:bg-surfaceHighlight'
+                                }`}
+                            >
+                                All
+                            </button>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-semibold text-textMuted uppercase">End Date Range</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="date"
-                                    value={endDateFilter.start}
-                                    onChange={(e) => setEndDateFilter(prev => ({ ...prev, start: e.target.value }))}
-                                    className="w-full px-3 py-2 bg-surface border border-surfaceHighlight rounded-lg text-sm text-text focus:border-primary outline-none transition-colors"
-                                />
-                                <span className="text-textMuted self-center">to</span>
-                                <input
-                                    type="date"
-                                    value={endDateFilter.end}
-                                    onChange={(e) => setEndDateFilter(prev => ({ ...prev, end: e.target.value }))}
-                                    className="w-full px-3 py-2 bg-surface border border-surfaceHighlight rounded-lg text-sm text-text focus:border-primary outline-none transition-colors"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+                    ) : undefined}
+                />
 
-            <div className="overflow-x-auto">
-                {loading ? (
-                    <div className="p-12 text-center text-textMuted">Loading groups...</div>
-                ) : paginated.length === 0 ? (
-                    <div className="p-12 text-center text-textMuted">No groups found.</div>
-                ) : (
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="border-b border-surfaceHighlight bg-surfaceHighlight/20">
-                                <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('group_name')}>
-                                    Group Name <SortIndicator sortConfig={sortConfig} column="group_name" />
-                                </th>
-                                <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('type_name')}>
-                                    Type <SortIndicator sortConfig={sortConfig} column="type_name" />
-                                </th>
-                                <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('start_date')}>
-                                    Start Date <SortIndicator sortConfig={sortConfig} column="start_date" />
-                                </th>
-                                <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('end_date')}>
-                                    End Date <SortIndicator sortConfig={sortConfig} column="end_date" />
-                                </th>
-                                <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-surfaceHighlight">
-                            {paginated.map(g => (
-                                <tr
-                                    key={g.group_id}
-                                    className="hover:bg-surfaceHighlight/30 transition-colors cursor-pointer"
-                                    onClick={() => navigate(`/groups/${g.group_id}`)}
-                                >
-                                    <td className="px-4 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white uppercase shrink-0">
-                                                {g.group_name.substring(0, 2)}
-                                            </div>
-                                            <span className="font-medium text-text">{g.group_name}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-4 text-sm text-textMuted">{getGroupTypeName(g.group_type_id)}</td>
-                                    <td className="px-4 py-4 text-sm text-textMuted">{new Date(g.start_date + 'T00:00:00').toLocaleDateString()}</td>
-                                    <td className="px-4 py-4 text-sm text-textMuted">{g.end_date ? new Date(g.end_date + 'T00:00:00').toLocaleDateString() : '-'}</td>
-                                    <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
-                                        <button
-                                            onClick={() => handleOpenEdit(g)}
-                                            className="p-1.5 text-textMuted hover:text-primary hover:bg-surfaceHighlight rounded-md transition-colors"
-                                            title="Edit"
-                                        >
-                                            <Pencil size={16} />
-                                        </button>
-                                    </td>
+                <div className="overflow-x-auto">
+                    {loading ? (
+                        <div className="p-12 text-center text-textMuted">Loading groups...</div>
+                    ) : paginated.length === 0 ? (
+                        <div className="p-12 text-center text-textMuted">No groups found.</div>
+                    ) : (
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b border-surfaceHighlight bg-surfaceHighlight/20">
+                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('group_name')}>
+                                        Group Name <SortIndicator sortConfig={sortConfig} column="group_name" />
+                                    </th>
+                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('type_name')}>
+                                        Type <SortIndicator sortConfig={sortConfig} column="type_name" />
+                                    </th>
+                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('start_date')}>
+                                        Start Date <SortIndicator sortConfig={sortConfig} column="start_date" />
+                                    </th>
+                                    <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('end_date')}>
+                                        End Date <SortIndicator sortConfig={sortConfig} column="end_date" />
+                                    </th>
+                                    {isAdmin && <th className="px-4 py-4 text-xs font-semibold text-textMuted uppercase tracking-wider text-right">Actions</th>}
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-surfaceHighlight">
+                                {paginated.map(g => (
+                                    <tr
+                                        key={g.group_id}
+                                        className="hover:bg-surfaceHighlight/30 transition-colors cursor-pointer"
+                                        onClick={() => navigate(`/groups/${g.group_id}`)}
+                                    >
+                                        <td className="px-4 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white uppercase shrink-0">
+                                                    {g.group_name.substring(0, 2)}
+                                                </div>
+                                                <span className="font-medium text-text">{g.group_name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-textMuted">{getGroupTypeName(g.group_type_id)}</td>
+                                        <td className="px-4 py-4 text-sm text-textMuted">{new Date(g.start_date + 'T00:00:00').toLocaleDateString()}</td>
+                                        <td className="px-4 py-4 text-sm text-textMuted">{g.end_date ? new Date(g.end_date + 'T00:00:00').toLocaleDateString() : '-'}</td>
+                                        {isAdmin && (
+                                            <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
+                                                <button
+                                                    onClick={() => handleOpenEdit(g)}
+                                                    className="p-1.5 text-textMuted hover:text-primary hover:bg-surfaceHighlight rounded-md transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <Pencil size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteGroup(g)}
+                                                    className="p-1.5 text-textMuted hover:text-red-400 hover:bg-surfaceHighlight rounded-md transition-colors"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {totalPages > 1 && (
+                    <div className="p-4 border-t border-surfaceHighlight flex items-center justify-between text-sm text-textMuted">
+                        <span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+                        <div className="flex gap-1">
+                            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="p-1.5 rounded hover:bg-surfaceHighlight disabled:opacity-30"><ChevronLeft size={18} /></button>
+                            <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} className="p-1.5 rounded hover:bg-surfaceHighlight disabled:opacity-30"><ChevronRight size={18} /></button>
+                        </div>
+                    </div>
                 )}
-            </div>
+            </Card>
 
-            {totalPages > 1 && (
-                <div className="p-4 border-t border-surfaceHighlight flex items-center justify-between text-sm text-textMuted">
-                    <span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
-                    <div className="flex gap-1">
-                        <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="p-1.5 rounded hover:bg-surfaceHighlight disabled:opacity-30"><ChevronLeft size={18} /></button>
-                        <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} className="p-1.5 rounded hover:bg-surfaceHighlight disabled:opacity-30"><ChevronRight size={18} /></button>
-                    </div>
-                </div>
-            )}
-        </Card>
-
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={currentGroup ? 'Edit Group' : 'Add New Group'}>
-            <form className="space-y-4" onSubmit={handleSubmit(onFormSubmit)}>
-                <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-textMuted">Group Name <span className="text-red-400">*</span></label>
-                    <input {...register('group_name')} className="w-full bg-background border border-surfaceHighlight rounded-lg px-4 py-2.5 text-text focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
-                    {errors.group_name && <p className="text-xs text-red-400">{errors.group_name.message}</p>}
-                </div>
-                <div>
-                    <label className="block text-xs font-medium text-textMuted mb-1">Group Type <span className="text-red-400">*</span></label>
-                    <select
-                        {...register('group_type_id')}
-                        className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary"
-                    >
-                        <option value="">Select type...</option>
-                        {groupTypes.map(t => (
-                            <option key={t.group_type_id} value={t.group_type_id}>{t.type_name}</option>
-                        ))}
-                    </select>
-                    {errors.group_type_id && <p className="text-xs text-red-400">{errors.group_type_id.message}</p>}
-                </div>
-                <div>
-                    <label className="block text-xs font-medium text-textMuted mb-1">Investee (Optional)</label>
-                    <select
-                        {...register('investee_id')}
-                        className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary"
-                    >
-                        <option value="">None</option>
-                        {investees.map(i => (
-                            <option key={i.investee_id} value={i.investee_id}>{i.investee_name}</option>
-                        ))}
-                    </select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={currentGroup ? 'Edit Group' : 'Add New Group'}>
+                <form className="space-y-4" onSubmit={handleSubmit(onFormSubmit)}>
                     <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-textMuted">Start Date <span className="text-red-400">*</span></label>
-                        <input type="date" {...register('start_date')} className="w-full bg-background border border-surfaceHighlight rounded-lg px-4 py-2.5 text-text focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
-                        {errors.start_date && <p className="text-xs text-red-400">{errors.start_date.message}</p>}
+                        <label className="text-sm font-medium text-textMuted">Group Name <span className="text-red-400">*</span></label>
+                        <input {...register('group_name')} className="w-full bg-background border border-surfaceHighlight rounded-lg px-4 py-2.5 text-text focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
+                        {errors.group_name && <p className="text-xs text-red-400">{errors.group_name.message}</p>}
                     </div>
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-textMuted">End Date</label>
-                        <input type="date" {...register('end_date')} className="w-full bg-background border border-surfaceHighlight rounded-lg px-4 py-2.5 text-text focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
-                        {errors.end_date && <p className="text-xs text-red-400">{errors.end_date.message}</p>}
+                    <div>
+                        <label className="block text-xs font-medium text-textMuted mb-1">Group Type <span className="text-red-400">*</span></label>
+                        <select
+                            {...register('group_type_id')}
+                            className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary"
+                        >
+                            <option value="">Select type...</option>
+                            {groupTypes.map(t => (
+                                <option key={t.group_type_id} value={t.group_type_id}>{t.type_name}</option>
+                            ))}
+                        </select>
+                        {errors.group_type_id && <p className="text-xs text-red-400">{errors.group_type_id.message}</p>}
                     </div>
-                </div>
-                <div className="pt-4 flex justify-end gap-3">
-                    <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                    <Button type="submit">{currentGroup ? 'Update' : 'Create'}</Button>
-                </div>
-            </form>
-        </Modal>
-    </div>
-);
+                    <div>
+                        <label className="block text-xs font-medium text-textMuted mb-1">Investee (Optional)</label>
+                        <select
+                            {...register('investee_id')}
+                            className="w-full bg-surfaceHighlight/30 border border-surfaceHighlight rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary"
+                        >
+                            <option value="">None</option>
+                            {investees.map(i => (
+                                <option key={i.investee_id} value={i.investee_id}>{i.investee_name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-textMuted">Start Date <span className="text-red-400">*</span></label>
+                            <input type="date" {...register('start_date')} className="w-full bg-background border border-surfaceHighlight rounded-lg px-4 py-2.5 text-text focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
+                            {errors.start_date && <p className="text-xs text-red-400">{errors.start_date.message}</p>}
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-textMuted">End Date</label>
+                            <input type="date" {...register('end_date')} className="w-full bg-background border border-surfaceHighlight rounded-lg px-4 py-2.5 text-text focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
+                            {errors.end_date && <p className="text-xs text-red-400">{errors.end_date.message}</p>}
+                        </div>
+                    </div>
+                    <div className="pt-4 flex justify-end gap-3">
+                        <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button type="submit">{currentGroup ? 'Update' : 'Create'}</Button>
+                    </div>
+                </form>
+            </Modal>
+        </div>
+    );
 };

@@ -501,7 +501,7 @@ async function seedDummyData() {
           },
           update: {
             user_type: 'PARTNER',
-            ...(supportsUserIsActive ? { is_active: false } : {}),
+            ...(supportsUserIsActive ? { is_active: true } : {}),
             name: partner.name,
             password_hash,
             ...(supportsUserPartnerLink ? { partner_id: partnerRecord.partner_id } : {}),
@@ -509,7 +509,7 @@ async function seedDummyData() {
           create: {
             chapter_id: chapter.chapter_id,
             user_type: 'PARTNER',
-            ...(supportsUserIsActive ? { is_active: false } : {}),
+            ...(supportsUserIsActive ? { is_active: true } : {}),
             name: partner.name,
             email: partner.email,
             password_hash,

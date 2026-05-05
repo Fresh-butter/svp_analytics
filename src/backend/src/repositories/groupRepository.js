@@ -40,6 +40,23 @@ class GroupRepository {
     return formatRow(row, { computeActive: true });
   }
 
+  static async findActiveGroupIdsForPartner(partner_id, chapter_id) {
+    if (!partner_id) return [];
+
+    const today = utcToday();
+    const rows = await prisma.group_partners.findMany({
+      where: {
+        partner_id,
+        chapter_id: chapter_id || undefined,
+        start_date: { lte: today },
+        OR: [{ end_date: null }, { end_date: { gte: today } }],
+      },
+      select: { group_id: true },
+    });
+
+    return Array.from(new Set(rows.map((row) => row.group_id)));
+  }
+
   /** GET /groups/:id — with members (partners), investees, and recurring_appointments */
   static async findByIdWithDetails(id) {
     const group = await prisma.groups.findUnique({
@@ -120,35 +137,6 @@ class GroupRepository {
 
     if (Object.keys(updateData).length === 0) return this.findById(id);
 
-    // Validate date bounds against existing group partners if dates are changing
-    if (updateData.start_date || updateData.end_date !== undefined) {
-      const currentGroup = await prisma.groups.findUnique({
-        where: { group_id: id },
-        select: { start_date: true, end_date: true }
-      });
-
-      if (!currentGroup) return null;
-
-      const newSd = updateData.start_date ? new Date(updateData.start_date).getTime() : new Date(currentGroup.start_date).getTime();
-      const newEd = updateData.end_date !== undefined
-        ? (updateData.end_date ? new Date(updateData.end_date).getTime() : new Date('9999-12-31').getTime())
-        : (currentGroup.end_date ? new Date(currentGroup.end_date).getTime() : new Date('9999-12-31').getTime());
-
-      const groupPartners = await prisma.group_partners.findMany({
-        where: { group_id: id },
-        select: { start_date: true, end_date: true, partners: { select: { partner_name: true } } }
-      });
-
-      for (const gp of groupPartners) {
-        const gpSd = new Date(gp.start_date).getTime();
-        const gpEd = gp.end_date ? new Date(gp.end_date).getTime() : new Date('9999-12-31').getTime();
-
-        if (newSd > gpSd || newEd < gpEd) {
-          return { error: `Cannot update group dates: Group dates must encompass partner ${gp.partners.partner_name}'s membership period.` };
-        }
-      }
-    }
-
     try {
       const row = await prisma.groups.update({
         where: { group_id: id },
@@ -170,41 +158,36 @@ class GroupRepository {
   static async syncPartners(group_id, chapter_id, partners) {
     if (!partners || !Array.isArray(partners)) return { success: true };
 
-    const group = await prisma.groups.findUnique({
-      where: { group_id },
-      select: { start_date: true, end_date: true }
-    });
+    const group = await prisma.groups.findUnique({ where: { group_id }, select: { group_id: true } });
     if (!group) return { error: 'Group not found' };
 
-    const groupSd = new Date(group.start_date).getTime();
-    const groupEd = group.end_date ? new Date(group.end_date).getTime() : new Date('9999-12-31').getTime();
+    const partnerIds = partners.map((p) => p.partner_id).filter(Boolean);
+    const uniquePartnerIds = [...new Set(partnerIds)];
 
-    // Fetch all partner boundaries to enforce validation rules
-    const partnerIds = partners.map(p => p.partner_id);
-    const dbPartners = await prisma.partners.findMany({
-      where: { partner_id: { in: partnerIds } },
-      select: { partner_id: true, start_date: true, end_date: true, partner_name: true }
-    });
+    if (uniquePartnerIds.length !== partnerIds.length) {
+      return { error: 'Duplicate partner entries are not allowed' };
+    }
 
-    const partnerMap = new Map();
-    dbPartners.forEach(p => partnerMap.set(p.partner_id, p));
+    if (uniquePartnerIds.length > 0) {
+      const existingPartners = await prisma.partners.count({ where: { partner_id: { in: uniquePartnerIds } } });
+      if (existingPartners !== uniquePartnerIds.length) {
+        return { error: 'One or more partners do not exist' };
+      }
+    }
 
-    // Validate dates: MAX(partner.start_date, group.start_date) <= gp.start_date <= COALESCE(gp.end_date, '9999-12-31') <= MIN(partner.end_date, group.end_date)
+    // Only validate local membership range ordering.
     for (const p of partners) {
-      const dbPartner = partnerMap.get(p.partner_id);
-      if (!dbPartner) return { error: `Partner ${p.partner_id} not found` };
+      if (!p.partner_id) return { error: 'partner_id is required for each partner entry' };
 
       const gpSd = p.start_date ? new Date(p.start_date).getTime() : new Date().getTime();
       const gpEd = p.end_date ? new Date(p.end_date).getTime() : new Date('9999-12-31').getTime();
 
-      const pSd = new Date(dbPartner.start_date).getTime();
-      const pEd = dbPartner.end_date ? new Date(dbPartner.end_date).getTime() : new Date('9999-12-31').getTime();
+      if (Number.isNaN(gpSd) || Number.isNaN(gpEd)) {
+        return { error: 'Invalid start_date or end_date' };
+      }
 
-      const minAllowedSd = Math.max(pSd, groupSd);
-      const maxAllowedEd = Math.min(pEd, groupEd);
-
-      if (gpSd < minAllowedSd || gpEd > maxAllowedEd || gpSd > gpEd) {
-        return { error: `Invalid dates for partner ${dbPartner.partner_name}. Dates must be within partner and group active periods.` };
+      if (gpSd > gpEd) {
+        return { error: 'End date cannot be less than Start date' };
       }
     }
 

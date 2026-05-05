@@ -293,7 +293,7 @@ async function main() {
   }
 
   const runAdminSeed = await askYesNo('Run admin/chapter seed now? (y/n)', mode === 'new');
-  const runDummySeed = await askYesNo('Run dummy-data seed now? (y/n)', false);
+  const runDummySeed = await askYesNo('Run dummy-data seed now? (y/n)', mode === 'new');
 
   const databaseUrl = `postgresql://${appConn.user}:${appConn.password}@${appConn.host}:${appConn.port}/${appConn.database}?schema=public`;
 

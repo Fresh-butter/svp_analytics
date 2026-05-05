@@ -19,6 +19,10 @@ import type {
   AnalyticsMonthlyVideo,
   AnalyticsInvestee,
 } from '../components/analytics/analyticsTypes';
+import { lookupService } from '../services/lookupService';
+import { investeeService } from '../services/investeeService';
+import { AppointmentType } from '../types';
+import type { Investee } from '../types';
 import {
   getAttendanceByPartner,
   getMetricsByCategory,
@@ -78,8 +82,24 @@ const MONTH_OPTIONS = generateMonthOptions();
 
 export const AnalyticsPage = () => {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('attendance');
-  const [fromMonth, setFromMonth] = useState(MONTH_OPTIONS[0]?.value || '2023-01');
-  const [toMonth, setToMonth] = useState(MONTH_OPTIONS[MONTH_OPTIONS.length - 1]?.value || '2026-03');
+  const defaultFromMonth = MONTH_OPTIONS[0]?.value || '2023-01';
+  const defaultToMonth = MONTH_OPTIONS[MONTH_OPTIONS.length - 1]?.value || '2026-03';
+
+  // Per-tab filters (do not leak between tabs)
+  const [attendanceFromMonth, setAttendanceFromMonth] = useState(defaultFromMonth);
+  const [attendanceToMonth, setAttendanceToMonth] = useState(defaultToMonth);
+  const [attendanceInvesteeId, setAttendanceInvesteeId] = useState('');
+  const [categoriesFromMonth, setCategoriesFromMonth] = useState(defaultFromMonth);
+  const [categoriesToMonth, setCategoriesToMonth] = useState(defaultToMonth);
+  const [monthlyFromMonth, setMonthlyFromMonth] = useState(defaultFromMonth);
+  const [monthlyToMonth, setMonthlyToMonth] = useState(defaultToMonth);
+  const [monthlyInvesteeId, setMonthlyInvesteeId] = useState('');
+  const [investeesFromMonth, setInvesteesFromMonth] = useState(defaultFromMonth);
+  const [investeesToMonth, setInvesteesToMonth] = useState(defaultToMonth);
+
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
+  const [investeeOptions, setInvesteeOptions] = useState<Investee[]>([]);
+  const [attendanceAppointmentTypeId, setAttendanceAppointmentTypeId] = useState('');
 
   // Tab-specific data states
   const [attendanceData, setAttendanceData] = useState<AnalyticsPartner[]>([]);
@@ -91,59 +111,187 @@ export const AnalyticsPage = () => {
   const [loadingTab, setLoadingTab] = useState<AnalyticsTab | null>('attendance');
   const [error, setError] = useState<string | null>(null);
 
-  // Load data for active tab
   useEffect(() => {
+    let cancelled = false;
+
+    const loadLookups = async () => {
+      try {
+        const [types, investees] = await Promise.all([
+          lookupService.listAppointmentTypes(),
+          investeeService.getAll(),
+        ]);
+        if (!cancelled) {
+          setAppointmentTypes(types);
+          setInvesteeOptions(investees);
+        }
+      } catch (err) {
+        console.error('Failed to load analytics lookups:', err);
+      }
+    };
+
+    void loadLookups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'attendance') return;
+
     let cancelled = false;
     let refreshing = false;
 
-    const loadData = async (showLoading: boolean) => {
+    const loadAttendance = async (showLoading: boolean) => {
       if (refreshing) return;
       refreshing = true;
       if (showLoading) {
-        setLoadingTab(activeTab);
+        setLoadingTab('attendance');
         setError(null);
       }
 
       try {
-        switch (activeTab) {
-          case 'attendance':
-            const attendance = await getAttendanceByPartner(fromMonth, toMonth);
-            if (!cancelled) setAttendanceData(attendance);
-            break;
-          case 'categories':
-            const categories = await getMetricsByCategory(fromMonth, toMonth);
-            if (!cancelled) setCategoriesData(categories);
-            break;
-          case 'monthly':
-            const monthly = await getMonthlyEngagement(fromMonth, toMonth);
-            if (!cancelled) setMonthlyData(monthly);
-            break;
-          case 'investees':
-            const investees = await getInvesteeAnalytics(fromMonth, toMonth);
-            if (!cancelled) setInvesteesData(investees);
-            break;
-        }
+        const attendance = await getAttendanceByPartner(
+          attendanceFromMonth,
+          attendanceToMonth,
+          attendanceInvesteeId || undefined,
+          attendanceAppointmentTypeId || undefined
+        );
+        if (!cancelled) setAttendanceData(attendance);
       } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load analytics data');
-        }
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load analytics data');
       } finally {
         if (!cancelled && showLoading) setLoadingTab(null);
         refreshing = false;
       }
     };
 
-    void loadData(true);
+    void loadAttendance(true);
 
     const intervalId = window.setInterval(() => {
-      void loadData(false);
+      void loadAttendance(false);
     }, DASHBOARD_AUTO_REFRESH_MS);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeTab, fromMonth, toMonth]);
+  }, [activeTab, attendanceFromMonth, attendanceToMonth, attendanceInvesteeId, attendanceAppointmentTypeId]);
+
+  useEffect(() => {
+    if (activeTab !== 'categories') return;
+
+    let cancelled = false;
+    let refreshing = false;
+
+    const loadCategories = async (showLoading: boolean) => {
+      if (refreshing) return;
+      refreshing = true;
+      if (showLoading) {
+        setLoadingTab('categories');
+        setError(null);
+      }
+
+      try {
+        const categories = await getMetricsByCategory(categoriesFromMonth, categoriesToMonth);
+        if (!cancelled) setCategoriesData(categories);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load analytics data');
+      } finally {
+        if (!cancelled && showLoading) setLoadingTab(null);
+        refreshing = false;
+      }
+    };
+
+    void loadCategories(true);
+
+    const intervalId = window.setInterval(() => {
+      void loadCategories(false);
+    }, DASHBOARD_AUTO_REFRESH_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeTab, categoriesFromMonth, categoriesToMonth]);
+
+  useEffect(() => {
+    if (activeTab !== 'monthly') return;
+
+    let cancelled = false;
+    let refreshing = false;
+
+    const loadMonthly = async (showLoading: boolean) => {
+      if (refreshing) return;
+      refreshing = true;
+      if (showLoading) {
+        setLoadingTab('monthly');
+        setError(null);
+      }
+
+      try {
+        const monthly = await getMonthlyEngagement(
+          monthlyFromMonth,
+          monthlyToMonth,
+          monthlyInvesteeId || undefined
+        );
+        if (!cancelled) setMonthlyData(monthly);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load analytics data');
+      } finally {
+        if (!cancelled && showLoading) setLoadingTab(null);
+        refreshing = false;
+      }
+    };
+
+    void loadMonthly(true);
+
+    const intervalId = window.setInterval(() => {
+      void loadMonthly(false);
+    }, DASHBOARD_AUTO_REFRESH_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeTab, monthlyFromMonth, monthlyToMonth, monthlyInvesteeId]);
+
+  useEffect(() => {
+    if (activeTab !== 'investees') return;
+
+    let cancelled = false;
+    let refreshing = false;
+
+    const loadInvestees = async (showLoading: boolean) => {
+      if (refreshing) return;
+      refreshing = true;
+      if (showLoading) {
+        setLoadingTab('investees');
+        setError(null);
+      }
+
+      try {
+        const investees = await getInvesteeAnalytics(investeesFromMonth, investeesToMonth);
+        if (!cancelled) setInvesteesData(investees);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load analytics data');
+      } finally {
+        if (!cancelled && showLoading) setLoadingTab(null);
+        refreshing = false;
+      }
+    };
+
+    void loadInvestees(true);
+
+    const intervalId = window.setInterval(() => {
+      void loadInvestees(false);
+    }, DASHBOARD_AUTO_REFRESH_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeTab, investeesFromMonth, investeesToMonth]);
 
   const renderTabContent = () => {
     if (loadingTab === activeTab) {
@@ -169,40 +317,49 @@ export const AnalyticsPage = () => {
         return (
           <AttendanceByPartner
             data={attendanceData}
-            fromMonth={fromMonth}
-            toMonth={toMonth}
-            onFromMonthChange={setFromMonth}
-            onToMonthChange={setToMonth}
+            fromMonth={attendanceFromMonth}
+            toMonth={attendanceToMonth}
+            onFromMonthChange={setAttendanceFromMonth}
+            onToMonthChange={setAttendanceToMonth}
+            appointmentTypes={appointmentTypes}
+            appointmentTypeId={attendanceAppointmentTypeId}
+            onAppointmentTypeChange={setAttendanceAppointmentTypeId}
+            investees={investeeOptions}
+            investeeId={attendanceInvesteeId}
+            onInvesteeChange={setAttendanceInvesteeId}
           />
         );
       case 'categories':
         return (
           <MetricsByCategory
             categoryData={categoriesData}
-            fromMonth={fromMonth}
-            toMonth={toMonth}
-            onFromMonthChange={setFromMonth}
-            onToMonthChange={setToMonth}
+            fromMonth={categoriesFromMonth}
+            toMonth={categoriesToMonth}
+            onFromMonthChange={setCategoriesFromMonth}
+            onToMonthChange={setCategoriesToMonth}
           />
         );
       case 'monthly':
         return (
           <MonthlyEngagement
             data={monthlyData}
-            fromMonth={fromMonth}
-            toMonth={toMonth}
-            onFromMonthChange={setFromMonth}
-            onToMonthChange={setToMonth}
+            fromMonth={monthlyFromMonth}
+            toMonth={monthlyToMonth}
+            onFromMonthChange={setMonthlyFromMonth}
+            onToMonthChange={setMonthlyToMonth}
+            investees={investeeOptions}
+            investeeId={monthlyInvesteeId}
+            onInvesteeChange={setMonthlyInvesteeId}
           />
         );
       case 'investees':
         return (
           <InvesteeAnalytics
             data={investeesData}
-            fromMonth={fromMonth}
-            toMonth={toMonth}
-            onFromMonthChange={setFromMonth}
-            onToMonthChange={setToMonth}
+            fromMonth={investeesFromMonth}
+            toMonth={investeesToMonth}
+            onFromMonthChange={setInvesteesFromMonth}
+            onToMonthChange={setInvesteesToMonth}
           />
         );
     }

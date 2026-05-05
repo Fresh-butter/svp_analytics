@@ -5,7 +5,7 @@ import { AppointmentType, GroupType } from '../types';
 import { validateAppointmentForm } from '../utils/validation';
 import { useAppointmentForm, AppointmentFormState } from '../hooks/useAppointmentForm';
 
-interface CreateAppointmentModalProps {
+interface AppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** Called when user clicks Create/Update. Parent handles API call and closing. */
@@ -22,7 +22,7 @@ interface CreateAppointmentModalProps {
   isEditing?: boolean;
 }
 
-export function CreateAppointmentModal({
+export function AppointmentModal({
   isOpen,
   onClose,
   onSubmit,
@@ -34,7 +34,7 @@ export function CreateAppointmentModal({
   initialSelectedPartnerIds,
   defaultDate,
   isEditing = false,
-}: CreateAppointmentModalProps) {
+}: AppointmentModalProps) {
   const { form, updateForm, selectedPartnerIds, setSelectedPartnerIds, resetForm } = useAppointmentForm();
 
   const [saving, setSaving] = useState(false);
@@ -176,3 +176,6 @@ export function CreateAppointmentModal({
     </>
   );
 }
+
+// Backward-compatible export name while migrating call sites.
+export const CreateAppointmentModal = AppointmentModal;

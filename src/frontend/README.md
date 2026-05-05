@@ -50,8 +50,7 @@ The app starts on **http://localhost:5173** by default.
 ## Project Structure
 
 ```
-prototype/
-├── .eslintrc.cjs             ESLint configuration
+frontend/
 ├── index.html                Vite entry HTML
 ├── package.json              Dependencies + npm scripts
 ├── postcss.config.js         PostCSS / Tailwind setup
@@ -72,7 +71,12 @@ prototype/
     ├── components/           Reusable UI elements
     │   ├── Common.tsx        Shared UI primitives (Modals, Buttons, Cards)
     │   ├── Layout.tsx        App shell — sidebar + topbar + content area
+  │   ├── StatusBadge.tsx   Status pills for appointments / active records
     │   ├── TimePicker.tsx    Custom time picker input
+  │   ├── CreateAppointmentModal.tsx
+  │   ├── CreateRecurringModal.tsx
+  │   ├── GroupSelectorModal.tsx
+  │   ├── PartnerSelectorModal.tsx
     │   └── analytics/        Chart & table components for the Analytics page
     │       ├── analyticsTypes.ts
     │       ├── AttendanceByPartner.tsx
@@ -87,6 +91,10 @@ prototype/
     │   ├── Partners.tsx      Partner management
     │   ├── Investees.tsx     Investee (NGO) management
     │   ├── Groups.tsx        Group management
+    │   ├── Appointments.tsx  Admin appointment list
+    │   ├── RecurringAppointments.tsx
+    │   ├── AppointmentView.tsx
+    │   ├── RecurringAppointmentView.tsx
     │   ├── Calendar.tsx      Appointment calendar
     │   └── Analytics.tsx     Charts + engagement analytics
     │
@@ -108,13 +116,33 @@ prototype/
     │   ├── AuthContext.tsx    JWT auth state + login/logout actions
     │   └── ThemeContext.tsx   Light/Dark theme toggle
     │
+    ├── hooks/                React Query and form hooks
+    │   ├── useAppointments.ts
+    │   ├── useRecurringAppointments.ts
+    │   ├── useInvestees.ts
+    │   ├── useGroups.ts
+    │   ├── usePartners.ts
+    │   └── useAppointmentForm.ts
+    │
     ├── types/                Shared TypeScript interfaces
     │   └── index.ts          Partner, Investee, Group, Appointment, etc.
     │
     └── utils/                Helper functions
-        ├── search.ts         Fuzzy/filtered search algorithms
-        └── recurrence.ts     Recurring event expansion logic
+      ├── search.ts         Fuzzy/filtered search algorithms
+      ├── recurrence.ts     Recurring event expansion logic
+      ├── calendarLegacy.ts  Calendar compatibility helpers
+      └── formatters.ts     Date/time formatting helpers
 ```
+
+  ### Current page set
+
+  - Admin: Home, Partners, Investees, Groups, Appointments, Recurring Appointments, Calendar, Analytics
+  - Partner: My Appointments, Explore views, Calendar, Analytics
+
+  ### Repo navigation
+
+  - Root overview: [../../README.md](../../README.md)
+  - Backend docs: [../backend/README.md](../backend/README.md)
 
 ---
 

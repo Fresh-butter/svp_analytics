@@ -9,6 +9,8 @@ import { formatDate, formatTime } from '../utils/formatters';
 import { AppointmentStatusBadge } from '../components/StatusBadge';
 import { parseLocalDate } from '../utils/appointmentHelpers';
 import { useAuth } from '../context/AuthContext';
+import { rruleToHuman } from '../mappers';
+import { navigateBack } from '../utils/navigation';
 
 type AttendanceChoice = 'PRESENT' | 'ABSENT_INFORMED' | 'ABSENT_NOT_INFORMED';
 
@@ -19,7 +21,6 @@ export const AppointmentViewPage = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isPartner = user?.user_type === 'PARTNER';
-  const [actionMessage, setActionMessage] = useState('');
   const partnerRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const focusPartnerId = searchParams.get('focus_partner') || '';
 
@@ -100,21 +101,6 @@ export const AppointmentViewPage = () => {
     },
   });
 
-  const respondMutation = useMutation({
-    mutationFn: async (response_status: 'PRESENT' | 'ABSENT') => {
-      if (!id) return;
-      return appointmentService.respond(id, response_status);
-    },
-    onSuccess: async (_data, response_status) => {
-      setActionMessage(response_status === 'PRESENT' ? 'Meeting accepted successfully.' : 'Marked as will be absent.');
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['appointment-detail', id] }),
-        queryClient.invalidateQueries({ queryKey: ['header-notification-appointments'] }),
-        queryClient.invalidateQueries({ queryKey: ['partner-assigned-appointments'] }),
-      ]);
-    },
-  });
-
   useEffect(() => {
     if (!focusPartnerId) return;
     const node = partnerRefs.current[focusPartnerId];
@@ -140,7 +126,6 @@ export const AppointmentViewPage = () => {
   today.setHours(0, 0, 0, 0);
   const canComplete = !isPartner && (normalizedStatus === 'PENDING' || normalizedStatus === 'SCHEDULED') && eventDate.getTime() <= today.getTime();
   const myPartnerRow = detail.partners.find((partner) => partner.partner_id === user?.partner_id);
-  const canRespond = isPartner && normalizedStatus === 'PENDING' && Boolean(myPartnerRow);
 
   const fmtDateTime = (value?: string) => {
     if (!value) return '-';
@@ -149,16 +134,10 @@ export const AppointmentViewPage = () => {
     return d.toLocaleString();
   };
 
-  const responseLabel = (status?: string | null) => {
-    if (status === 'PRESENT') return 'Meeting accepted';
-    if (status === 'ABSENT') return 'Will be absent';
-    return 'Not informed';
-  };
-
   return (
     <div className="space-y-6">
-      <button onClick={() => navigate(isPartner ? '/calendar' : '/appointments')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
-        <ArrowLeft size={16} /> Back to Appointments
+      <button onClick={() => navigateBack(navigate, isPartner ? '/calendar' : '/appointments')} className="flex items-center gap-2 text-textMuted hover:text-text transition-colors text-sm">
+        <ArrowLeft size={16} /> Back
       </button>
 
       <Card className="p-6 bg-surface border-surfaceHighlight">
@@ -196,39 +175,6 @@ export const AppointmentViewPage = () => {
         </div>
       </Card>
 
-      {canRespond && (
-        <Card className="p-6 bg-surface border-surfaceHighlight">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h2 className="text-lg font-semibold text-text">Your Response</h2>
-              <p className="text-sm text-textMuted mt-1">
-                Inform admin whether you plan to be present for this meeting.
-              </p>
-              <p className="text-xs text-textMuted mt-2">
-                Current: {responseLabel(myPartnerRow?.partner_response_status)}
-              </p>
-              {actionMessage && (
-                <div className="mt-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-1 rounded inline-block">
-                  {actionMessage}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => respondMutation.mutate('ABSENT')}
-                disabled={respondMutation.isPending}
-              >
-                Mark Absent
-              </Button>
-              <Button onClick={() => respondMutation.mutate('PRESENT')} disabled={respondMutation.isPending}>
-                Mark Present
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
       <Card className="p-6 bg-surface border-surfaceHighlight space-y-3">
         <div className="flex items-center gap-2">
           <Calendar size={18} className="text-primary" />
@@ -238,7 +184,20 @@ export const AppointmentViewPage = () => {
           <div><span className="text-textMuted">Name:</span> <span className="text-text ml-1">{titleName}</span></div>
           <div><span className="text-textMuted">Appointment Type:</span> <span className="text-text ml-1">{appointmentTypeName}</span></div>
           <div><span className="text-textMuted">Group Type:</span> <span className="text-text ml-1">{groupTypeName}</span></div>
-          <div><span className="text-textMuted">Investee:</span> <span className="text-text ml-1">{investeeDetails?.investee_name || '-'}</span></div>
+          <div>
+            <span className="text-textMuted">Investee:</span>{' '}
+            {investeeDetails?.investee_id ? (
+              <button
+                type="button"
+                className="text-primary hover:underline"
+                onClick={() => navigate(`/investees/${investeeDetails.investee_id}`)}
+              >
+                {investeeDetails?.investee_name || '-'}
+              </button>
+            ) : (
+              <span className="text-text ml-1">{investeeDetails?.investee_name || '-'}</span>
+            )}
+          </div>
           <div><span className="text-textMuted">Duration:</span> <span className="text-text ml-1">{appt.duration_minutes ? `${appt.duration_minutes} min` : '-'}</span></div>
           <div><span className="text-textMuted">From Recurring Template:</span> <span className="text-text ml-1">{recurringDetails ? 'Yes' : 'No'}</span></div>
           <div><span className="text-textMuted">Created At:</span> <span className="text-text ml-1">{fmtDateTime(appt.created_at)}</span></div>
@@ -269,7 +228,20 @@ export const AppointmentViewPage = () => {
             <h2 className="text-lg font-semibold text-text">Recurring Template Snapshot</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div><span className="text-textMuted">Pattern (RRule):</span> <span className="text-text ml-1 break-all">{recurringDetails.rrule || '-'}</span></div>
+            <div>
+              <span className="text-textMuted">Pattern:</span>{' '}
+              {recurringDetails?.rec_appointment_id ? (
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={() => navigate(`/recurring-appointments/${recurringDetails.rec_appointment_id}`)}
+                >
+                  {recurringDetails.rrule ? rruleToHuman(recurringDetails.rrule) : '-'}
+                </button>
+              ) : (
+                <span className="text-text ml-1">{recurringDetails.rrule ? rruleToHuman(recurringDetails.rrule) : '-'}</span>
+              )}
+            </div>
             <div><span className="text-textMuted">Start Time:</span> <span className="text-text ml-1">{formatTime(recurringDetails.start_time)}</span></div>
             <div><span className="text-textMuted">Start Date:</span> <span className="text-text ml-1">{formatDate(recurringDetails.start_date)}</span></div>
             <div><span className="text-textMuted">End Date:</span> <span className="text-text ml-1">{formatDate(recurringDetails.end_date)}</span></div>
@@ -294,27 +266,20 @@ export const AppointmentViewPage = () => {
                 ref={(node) => {
                   partnerRefs.current[p.partner_id] = node;
                 }}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${focusPartnerId === p.partner_id ? 'bg-primary/20 border border-primary/40' : 'bg-surfaceHighlight/20'}`}
+                onClick={() => navigate(`/partners/${p.partner_id}`)}
+                className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer ${focusPartnerId === p.partner_id ? 'bg-primary/20 border border-primary/40' : 'bg-surfaceHighlight/20'}`}
               >
                 <div>
                   <p className="text-text">{p.partner_name}</p>
                   <p className="text-xs text-textMuted">{p.email}</p>
                 </div>
                 {p.is_present === null ? (
-                  <div className="text-right">
-                    <span className="text-xs text-textMuted">Not marked</span>
-                    <p className="text-[11px] text-textMuted mt-0.5">
-                      Intent: {responseLabel(p.partner_response_status)}
-                    </p>
-                  </div>
+                  <span className="text-xs text-textMuted">Not marked</span>
                 ) : (
                   <div className="text-right">
                     <span className={p.is_present ? 'text-green-500 text-xs' : 'text-red-400 text-xs'}>
                       {p.is_present ? 'Present' : p.absent_informed === true ? 'Absent (Informed)' : p.absent_informed === false ? 'Absent (Not Informed)' : 'Absent'}
                     </span>
-                    <p className="text-[11px] text-textMuted mt-0.5">
-                      Intent: {responseLabel(p.partner_response_status)}
-                    </p>
                   </div>
                 )}
               </div>

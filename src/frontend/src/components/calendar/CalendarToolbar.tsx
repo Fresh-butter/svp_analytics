@@ -1,5 +1,5 @@
 import { format, isBefore, startOfDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus, Repeat, LayoutGrid, List, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Repeat, LayoutGrid, List, Download } from 'lucide-react';
 
 type CalendarView = 'grid' | 'list';
 
@@ -7,14 +7,11 @@ type Props = {
   currentMonth: Date;
   selectedDate: Date;
   calendarView: CalendarView;
-  showExportOptions: boolean;
   onToggleView: (view: CalendarView) => void;
   onToday: () => void;
   onPrevMonth: () => void;
   onNextMonth: () => void;
-  onToggleExportOptions: () => void;
   onExportExcel: () => void;
-  onExportPDF: () => void;
   onOpenAddEvent: () => void;
   onOpenAddRecurring: () => void;
   canEdit?: boolean;
@@ -24,14 +21,11 @@ export const CalendarToolbar = ({
   currentMonth,
   selectedDate,
   calendarView,
-  showExportOptions,
   onToggleView,
   onToday,
   onPrevMonth,
   onNextMonth,
-  onToggleExportOptions,
   onExportExcel,
-  onExportPDF,
   onOpenAddEvent,
   onOpenAddRecurring,
   canEdit = true,
@@ -82,30 +76,13 @@ export const CalendarToolbar = ({
         <div className="flex gap-2">
           <div className="relative">
             <button
-              onClick={onToggleExportOptions}
+              onClick={onExportExcel}
               className="flex items-center gap-2 bg-surfaceHighlight hover:bg-surfaceHighlight/80 text-text px-4 py-2 rounded-md transition-shadow"
+              title="Export as Excel"
             >
               <Download size={18} />
-              <span>Export</span>
+              <span>Export Excel</span>
             </button>
-            {showExportOptions && (
-              <div className="absolute right-0 mt-2 w-48 bg-surface border border-surfaceHighlight rounded-lg shadow-lg z-10 py-1">
-                <button
-                  onClick={onExportExcel}
-                  className="w-full text-left px-4 py-2 text-sm text-text hover:bg-surfaceHighlight flex items-center gap-2"
-                >
-                  <FileSpreadsheet size={16} className="text-green-500" />
-                  Export as Excel
-                </button>
-                <button
-                  onClick={onExportPDF}
-                  className="w-full text-left px-4 py-2 text-sm text-text hover:bg-surfaceHighlight flex items-center gap-2"
-                >
-                  <FileText size={16} className="text-red-500" />
-                  Export as PDF
-                </button>
-              </div>
-            )}
           </div>
 
           {canEdit && (

@@ -25,6 +25,12 @@ class InvesteeController {
       const { month, year } = req.query;
       const investee = await InvesteeRepository.findByIdWithDetails(req.params.id, month, year);
       if (!investee) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Investee not found' } }); return; }
+
+      if (req.user?.user_type === 'PARTNER') {
+        investee.appointments = [];
+        investee.recurring_appointments = [];
+      }
+
       res.json({ success: true, data: investee });
     } catch (err) {
       console.error('Get investee error:', err);
