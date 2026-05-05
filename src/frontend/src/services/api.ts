@@ -45,7 +45,7 @@ async function request<T>(
   }
 
   const json = await res.json();
-  const errorCode = json?.error?.code;
+  // const errorCode = json?.error?.code;
   const isAuthEndpoint =
     endpoint.startsWith('/auth/login') ||
     endpoint.startsWith('/auth/forgot-password') ||

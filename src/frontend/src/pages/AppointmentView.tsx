@@ -125,7 +125,9 @@ export const AppointmentViewPage = () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const canComplete = !isPartner && (normalizedStatus === 'PENDING' || normalizedStatus === 'SCHEDULED') && eventDate.getTime() <= today.getTime();
-  const myPartnerRow = detail.partners.find((partner) => partner.partner_id === user?.partner_id);
+    // const myPartnerRow = appointment.partners.find(
+  //   (p) => p.partner_id === currentUser.partner_id
+  // );
 
   const fmtDateTime = (value?: string) => {
     if (!value) return '-';
